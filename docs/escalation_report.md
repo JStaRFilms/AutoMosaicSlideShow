@@ -1,359 +1,306 @@
 # Escalation Handoff Report
 
-**Generated:** 2025-12-23T16:20:00+01:00
-**Original Issue:** Fix Remotion CLI Export (Layout Mismatch & Encoding Errors)
+**Generated:** 2025-12-23T17:23:48+01:00
+**Original Issue:** Fine-Tune Layout Engine (Cut-off images & Blank slides)
 
 ---
 
 ## PART 1: THE DAMAGE REPORT
 
 ### 1.1 Original Goal
-The user wanted to export their "AutoMosaic" slideshow project using the Remotion CLI.
-The project allows users to create complex photo layouts (Grids, Bento, etc.) in a Next.js editor.
-The goal was to have the CLI output match the Editor Preview exactly.
+The objective was to fine-tune the `LayoutEngine` to prevent "orphan" slides (1-2 images) by recycling images to fill denser layouts, and to fix layout rendering issues where images were being cut off or not appearing.
 
 ### 1.2 Observed Failure / Error
-The video now exports successfully (no more 404s or EncodingErrors).
-**HOWEVER**, the visual layout in the exported video is incorrect.
--   **Symptom:** The video looks "zoomed in" or like a "full screen show". Complex grid layouts (e.g. 2x2, 3x3) appear as single images filling the screen, or are severely broken.
--   **User feedback:** "it's mostly full scren show idk actually since it's css it might still be a css fix"
+Despite implementing image recycling and explicit grid row calculations:
+1.  **Cut-off Images:** Users still report images being cut off in the grid layouts (`HeroLayout` specifically mentioned).
+2.  **Blank Slots:** Users see blank spaces where images should be, even though the logic supposedly "pads" the slide with recycled images.
 
 ### 1.3 Failed Approach
-1.  **Fixed 404s:** Switched from `file://` to `http://localhost:3000` (serving assets via Next.js dev server). Confirmed working.
-2.  **Fixed EncodingError:** Added `--concurrency=1` to the CLI command. This stabilized the render.
-3.  **Fixed Aspect Ratio:** Updated `Root.tsx` `calculateMetadata` to pass `props.width` and `height`. This ensures the video canvas size is correct.
-4.  **Attempted Layout Fix:** Suspected Tailwind CSS was missing in the CLI render. Added `import "./app/globals.css";` to `src/index.ts`.
-    -   *Result:* User reported "much better" but still "mostly full screen". This suggests the CSS might be loading partially or the *layout logic* (CSS Grid/Flex) is behaving differently in the headless Chromium environment compared to the main browser window.
+1.  **Padding Logic:** Modifying `groupImagesIntoSlides` in `LayoutEngine.ts` to pad small groups with random images from the project.
+    -   *Failure Point:* I suspect I am pushing the *same* image objects (by reference) into the array. When `SlideLayout` renders them, it uses `key={i}`, which *should* be fine, but if the component logic inside relies on `img.id` for anything unique (or if `Remotion` caching behaves oddly with identical object references), this could be the cause of blanks. Wait, `SlideLayout` uses `key={i}` for the wrapper, but if the `Img` component or internal React reconciliation gets confused by identical properties, it might be an issue. **Update:** `SlideLayout` maps `images.map((img, i) => ... key={i})`.
+2.  **Explicit Row Math:** Updating `SlideLayout.tsx` to calculate `gridTemplateRows` explicitly based on `Math.ceil(images.length / cols)`.
+    -   *Failure Point:* `HeroLayout` sidebar might still be miscalculating height, or `min-height` constraints on the container are causing overflow.
 
 ### 1.4 Key Files Involved
--   `src/index.ts` (Remotion Entry Point)
--   `remotion.config.ts` (Webpack Config)
--   `src/Root.tsx` (Root Composition)
--   `src/components/ui/ExportDialog.tsx` (Command Generation)
--   `src/app/api/save-assets/route.ts` (Asset Saving)
--   `src/features/composition/SlideLayout.tsx` (Layout Implementation)
+- `src/features/layout/LayoutEngine.ts` (Logic for grouping/padding)
+- `src/features/composition/SlideLayout.tsx` (Render logic for grids)
 
 ### 1.5 Best-Guess Diagnosis
-The specific "Full Screen" behavior suggests that the **Grid Layout CSS** is failing.
--   In `SlideLayout.tsx`, layouts rely on `class="grid"` and `style={{ gridTemplateColumns: ... }}`.
--   If Tailwind's `display: grid` class is not applied (due to purging or missing base styles), `div` elements default to `block` (full width), pushing images to stack vertically or fill the view if `absolute` positioning is involved (though here it's mostly flow layout within container).
--   **Hypothesis:** The `globals.css` import in `index.ts` might not be processed correctly by the Remotion Webpack config, OR Tailwind JIT is not picking up the classes because `remotion.config.ts` overwrites webpack rules in a way that breaks PostCSS/Tailwind processing.
--   **Alternative:** The `Img` component behavior or object-fit/positioning is failing without specific Tailwind utility classes.
+1.  **Blank Images (Critical):** The "recycling" logic in `LayoutEngine.ts` pushes existing image objects into the new group. `group.push(...paddingImages)`. These objects share the same `id`. If any downstream component uses `id` as a key (or if Remotion does internally), this causes collisions. The fix requires cloning the image object and assigning a new ephemeral `id` (e.g., `original-id_recycled_timestamp`).
+2.  **Cut-off Images:** likely a CSS Grid vs Flexbox conflict. `gridTemplateRows: repeat(N, 1fr)` works well if the container has a defined height. In Remotion, `AbsoluteFill` provides that. However, if the `gap` calculation + `1fr` rows exceeds 100% due to box-sizing or precision issues, the last row gets clipped. We might need `minmax(0, 1fr)` or safer gap handling.
 
 ---
 
 ## PART 2: FULL FILE CONTENTS (Self-Contained)
 
-### File: `src/index.ts`
+### File: `src/features/layout/LayoutEngine.ts`
 ```typescript
-import "./app/globals.css";
-import { registerRoot } from "remotion";
-import { RemotionRoot } from "./Root";
+/**
+ * Layout Engine
+ * Automatically groups images into aesthetic slide layouts.
+ * 
+ * Supports: Grid, Hero, Stacked, Scattered, Bento, Mosaic layouts
+ * Randomizes layout selection per slide for visual variety.
+ */
 
-registerRoot(RemotionRoot);
-```
+import type { ImageAsset, LayoutType, SlideConfig, LayoutConfig } from "@/lib/types";
 
-### File: `remotion.config.ts`
-```typescript
-import { Config } from '@remotion/cli/config';
-import path from 'path';
+// ============================================
+// Layout Templates by Image Count
+// ============================================
 
-Config.overrideWebpackConfig((currentConfiguration) => {
-    return {
-        ...currentConfiguration,
-        resolve: {
-            ...currentConfiguration.resolve,
-            alias: {
-                ...currentConfiguration.resolve?.alias,
-                '@': path.join(process.cwd(), 'src'),
+const LAYOUTS_BY_COUNT: Record<number, LayoutType[]> = {
+    1: ["hero-left", "hero-right"], // Single hero image
+    2: ["split-vertical", "hero-left", "hero-right"],
+    3: ["mosaic", "stacked", "scattered", "hero-left"],
+    4: ["grid-2x2", "hero-left", "hero-right", "bento"],
+    5: ["grid-3x2"], // Bento only supports 4 slots currently
+    6: ["grid-3x2", "grid-3x3"],
+};
+
+// Fallback for 7+ images
+const LARGE_GROUP_LAYOUTS: LayoutType[] = ["grid-3x3", "grid-3x2"];
+
+// ============================================
+// Utility Functions
+// ============================================
+
+function randomChoice<T>(arr: T[]): T {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+    const result = [...arr];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
+function generateId(): string {
+    return `slide-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+// ============================================
+// Layout Selection
+// ============================================
+
+function selectLayoutForCount(count: number): LayoutType {
+    if (count <= 0) return "grid-2x2";
+
+    const layouts = LAYOUTS_BY_COUNT[count] || LARGE_GROUP_LAYOUTS;
+    return randomChoice(layouts);
+}
+
+// ============================================
+// Image Grouping Strategy
+// ============================================
+
+interface GroupingOptions {
+    minPerSlide: number;
+    maxPerSlide: number;
+    preferVariety: boolean;
+}
+
+const DEFAULT_GROUPING: GroupingOptions = {
+    minPerSlide: 1,
+    maxPerSlide: 6,
+    preferVariety: true,
+};
+
+function groupImagesIntoSlides(
+    images: ImageAsset[],
+    options: GroupingOptions = DEFAULT_GROUPING
+): ImageAsset[][] {
+    if (images.length === 0) return [];
+
+    const { minPerSlide, maxPerSlide, preferVariety } = options;
+    const groups: ImageAsset[][] = [];
+    let remaining = [...images];
+
+    // standard grouping logic
+    while (remaining.length > 0) {
+        // Vary group size for visual interest
+        let groupSize: number;
+
+        if (preferVariety && remaining.length > maxPerSlide) {
+            // Random size between min and max for variety
+            groupSize = Math.floor(
+                Math.random() * (maxPerSlide - minPerSlide + 1) + minPerSlide
+            );
+        } else {
+            // Take all remaining if under max
+            groupSize = Math.min(remaining.length, maxPerSlide);
+        }
+
+        // Ensure we don't leave orphan images
+        // If the remaining after this group would be too small to form a valid slide (less than minPerSlide)
+        // then just take everything now.
+        if (remaining.length - groupSize < minPerSlide && remaining.length > groupSize) {
+            groupSize = remaining.length;
+        }
+
+        groups.push(remaining.slice(0, groupSize));
+        remaining = remaining.slice(groupSize);
+    }
+
+    // Post-process: Pad small groups (specifically the last one) with recycled images
+    // to ensure better layouts (e.g., minimum 3 images for density).
+    const MIN_DENSE_COUNT = 3;
+    const TARGET_PAD_COUNT = 4; // Target size when padding (good for 2x2 grid)
+
+    groups.forEach((group, index) => {
+        // Only pad if:
+        // 1. It's a small group (< 3)
+        // 2. We have enough total images in the project to borrow from
+        // 3. It's not the ONLY group (unless we really want to repeat images in a single slide? No, that's weird)
+        if (group.length < MIN_DENSE_COUNT && images.length >= TARGET_PAD_COUNT) {
+            const needed = TARGET_PAD_COUNT - group.length;
+
+            // Pool of potential images to recycle (all images excluding current group members)
+            const currentIds = new Set(group.map(img => img.id));
+            const pool = images.filter(img => !currentIds.has(img.id));
+
+            if (pool.length >= needed) {
+                const shuffledPool = shuffleArray(pool);
+                const paddingImages = shuffledPool.slice(0, needed);
+
+                // Add padding images to the group
+                // We modify the array in place (since it's a reference)
+                // but let's be safer and reassign or push
+                group.push(...paddingImages);
+            }
+        }
+    });
+
+    return groups;
+}
+
+// ============================================
+// Duration Distribution (FR-011)
+// ============================================
+
+interface DurationOptions {
+    totalDurationSeconds: number;
+    fps: number;
+    slides: SlideConfig[];
+}
+
+/**
+ * Smart Duration Distribution
+ * Allocates time based on slide complexity (more images = more time)
+ */
+export function distributeDurations(
+    slides: SlideConfig[],
+    totalDurationSeconds: number,
+    fps: number
+): SlideConfig[] {
+    if (slides.length === 0) return [];
+
+    const totalFrames = totalDurationSeconds * fps;
+
+    // Calculate complexity weights (more images = higher weight)
+    const weights = slides.map((slide) => {
+        const imageCount = slide.layout.images.length;
+        // Base weight + bonus for multi-image layouts
+        return 1 + imageCount * 0.3;
+    });
+
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+    // Distribute frames proportionally
+    return slides.map((slide, i) => ({
+        ...slide,
+        durationFrames: Math.round((weights[i] / totalWeight) * totalFrames),
+    }));
+}
+
+// ============================================
+// Main Layout Engine
+// ============================================
+
+export interface LayoutEngineOptions {
+    gap?: number;
+    minPerSlide?: number;
+    maxPerSlide?: number;
+    totalDurationSeconds?: number;
+    fps?: number;
+}
+
+/**
+ * Main export: Generate slides from images
+ */
+export function generateSlides(
+    images: ImageAsset[],
+    options: LayoutEngineOptions = {}
+): SlideConfig[] {
+    const {
+        gap = 24,
+        minPerSlide = 1,
+        maxPerSlide = 6,
+        totalDurationSeconds = 30,
+        fps = 30,
+    } = options;
+
+    if (images.length === 0) return [];
+
+    // 1. Group images into slides
+    const groups = groupImagesIntoSlides(images, {
+        minPerSlide,
+        maxPerSlide,
+        preferVariety: true,
+    });
+
+    // 2. Assign layouts to each group
+    const slides: SlideConfig[] = groups.map((group) => {
+        const layoutType = selectLayoutForCount(group.length);
+
+        return {
+            id: generateId(),
+            layout: {
+                type: layoutType,
+                images: group,
+                gap,
             },
+            durationFrames: 0, // Will be calculated
+        };
+    });
+
+    // 3. Distribute durations intelligently
+    return distributeDurations(slides, totalDurationSeconds, fps);
+}
+
+// ============================================
+// Layout Re-randomization
+// ============================================
+
+/**
+ * Re-randomize layout for a single slide
+ */
+export function rerandomizeSlideLayout(slide: SlideConfig): SlideConfig {
+    const imageCount = slide.layout.images.length;
+    const newLayoutType = selectLayoutForCount(imageCount);
+
+    return {
+        ...slide,
+        layout: {
+            ...slide.layout,
+            type: newLayoutType,
         },
     };
-});
-
-// Config.setChromiumDisableWebSecurity(true);
-```
-
-### File: `src/Root.tsx`
-```typescript
-import { Composition } from "remotion";
-import { MosaicComposition, calculateTotalFrames } from "./features/composition/MosaicComposition";
-import { DEFAULT_PROJECT_CONFIG, RESOLUTION_PRESETS } from "./lib/types";
-import { compositionPropsSchema } from "./lib/types";
-
-export const RemotionRoot: React.FC = () => {
-    return (
-        <>
-            <Composition
-                id="AutoMosaic"
-                component={MosaicComposition as any}
-                durationInFrames={30 * 30} // Default duration, overridden by props
-                fps={30}
-                width={1920}
-                height={1080}
-                schema={compositionPropsSchema}
-                defaultProps={{
-                    slides: [],
-                    width: 1920,
-                    height: 1080,
-                    fps: 30,
-                    backgroundColor: "#000000",
-                    enabledTransitions: DEFAULT_PROJECT_CONFIG.enabledTransitions,
-                    randomizeTransitions: true,
-                }}
-                calculateMetadata={async ({ props }) => {
-                    const durationInFrames = calculateTotalFrames(props.slides);
-                    return {
-                        durationInFrames: Math.max(durationInFrames, 1), // Ensure at least 1 frame
-                        width: props.width,
-                        height: props.height,
-                    };
-                }}
-            />
-        </>
-    );
-};
-```
-
-### File: `src/components/ui/ExportDialog.tsx`
-```typescript
-"use client";
-
-import { X, Copy, Check, Terminal, UploadCloud, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { useEditorStore } from "@/stores/editor-store";
-import { RESOLUTION_PRESETS } from "@/lib/types";
-
-interface ExportDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
 }
 
-export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
-    const [status, setStatus] = useState<"idle" | "uploading" | "ready" | "error">("idle");
-    const [copied, setCopied] = useState(false);
-
-    const config = useEditorStore((s) => s.config);
-    const slides = useEditorStore((s) => s.slides);
-    const images = useEditorStore((s) => s.images);
-
-    const resolution = RESOLUTION_PRESETS[config.resolution];
-
-    // Logic to sync assets to local disk
-    const handleSync = async () => {
-        setStatus("uploading");
-
-        try {
-            // 2. Prepare FormData with Images
-            const formData = new FormData();
-            images.forEach((img) => {
-                formData.append("files", img.file);
-            });
-
-            const res = await fetch("/api/save-assets", {
-                method: "POST",
-                body: formData,
-            });
-
-            if (!res.ok) throw new Error("Upload failed");
-
-            const data = await res.json();
-            // data.paths contains mapping of filename -> absolute system path
-
-            // 1. Prepare Props with HTTP paths (http://localhost:port/...)
-            const origin = window.location.origin; // e.g., http://localhost:3000
-            
-            const syncProps = {
-                slides: slides.map((s) => ({
-                    ...s,
-                    layout: {
-                        ...s.layout,
-                        images: s.layout.images.map((img) => ({
-                            ...img,
-                            // Use HTTP URL pointing to the Next.js public folder
-                            // The API now returns relative paths like "/uploads/img.jpg"
-                            url: `${origin}${data.paths[img.file.name]}`,
-                        })),
-                    },
-                })),
-                width: resolution.width,
-                height: resolution.height,
-                fps: config.fps,
-                backgroundColor: config.backgroundColor,
-                enabledTransitions: config.enabledTransitions,
-                randomizeTransitions: config.randomizeTransitions,
-            };
-
-            // 2. Save Props JSON as a file
-            const propsFormData = new FormData();
-            const jsonBlob = new Blob([JSON.stringify(syncProps, null, 2)], {
-                type: "application/json",
-            });
-            // We reuse the save-assets endpoint to save the json file too
-            // Note: The API route logic I just wrote expects "props" as a string or "files".
-            // Let's stick to the "files" approach for the JSON blob to ensure it gets written to disk.
-            propsFormData.append("files", jsonBlob, "render-props.json");
-
-            await fetch("/api/save-assets", {
-                method: "POST",
-                body: propsFormData,
-            });
-
-            setStatus("ready");
-        } catch (e) {
-            console.error(e);
-            setStatus("error");
-        }
-    };
-
-    // Clean Pnpm command pointing to the local props file
-    // Added --concurrency=1 to prevent "socket hang up" or "EncodingError" when serving many large local files concurrently
-    const command = `pnpm exec remotion render src/index.ts AutoMosaic out/${config.name.replace(/\s+/g, "_")}.mp4 --props=./public/uploads/render-props.json --concurrency=1`;
-
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(command);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-            <div className="bg-surface border border-border rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden">
-                {/* Header */}
-                <div className="border-b border-border p-4 flex items-center justify-between bg-surface-highlight">
-                    <div className="flex items-center gap-2">
-                        <Terminal className="w-4 h-4 text-accent" />
-                        <h3 className="font-semibold text-primary">Export Video</h3>
-                    </div>
-                    <button onClick={onClose} className="text-secondary hover:text-white transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="p-6 space-y-6">
-                    {status === "idle" || status === "error" ? (
-                        <div className="text-center py-8">
-                            <p className="text-secondary mb-6">
-                                To export a high-quality MP4, we need to sync your images to the local <code>public/uploads</code> folder first.
-                            </p>
-
-                            {status === "error" && (
-                                <p className="text-danger mb-4 text-sm">Sync failed. Please try again.</p>
-                            )}
-
-                            <button
-                                onClick={handleSync}
-                                className="bg-primary text-black px-6 py-3 rounded-lg font-bold hover:bg-white transition-colors inline-flex items-center gap-2"
-                            >
-                                <UploadCloud className="w-5 h-5" />
-                                Sync Assets & Generate Command
-                            </button>
-                        </div>
-                    ) : status === "uploading" ? (
-                        <div className="text-center py-12">
-                            <Loader2 className="w-8 h-8 text-accent animate-spin mx-auto mb-4" />
-                            <p className="text-secondary">Syncing assets to disk...</p>
-                        </div>
-                    ) : (
-                        <div>
-                            <p className="text-sm text-secondary mb-4 leading-relaxed">
-                                Assets synced! Paste this command in your terminal to render the video.
-                            </p>
-
-                            <div className="bg-black rounded-lg border border-border p-4 relative group">
-                                <code className="text-xs font-mono text-green-400 break-all block pr-8 max-h-32 overflow-y-auto custom-scrollbar">
-                                    {command}
-                                </code>
-
-                                <button
-                                    onClick={copyToClipboard}
-                                    className="absolute top-2 right-2 p-2 rounded hover:bg-surface-highlight text-secondary hover:text-white transition-colors"
-                                    title="Copy to clipboard"
-                                >
-                                    {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                                </button>
-                            </div>
-
-                            <div className="mt-6 bg-surface-highlight/50 rounded p-4 text-xs text-secondary flex gap-3 items-start">
-                                <Terminal className="w-4 h-4 shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="font-semibold text-primary mb-1">Why do I need to run a command?</p>
-                                    <p>Browser-based rendering is limited. For professional quality, we use the local Remotion engine directly. This ensures smooth playback and perfect frame accuracy.</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-}
-```
-
-### File: `src/app/api/save-assets/route.ts`
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
-
-export async function POST(req: NextRequest) {
-    try {
-        const formData = await req.formData();
-        const files = formData.getAll("files") as File[];
-        const propsJson = formData.get("props") as string;
-
-        // Ensure upload dir exists
-        const uploadDir = path.join(process.cwd(), "public", "uploads");
-        await mkdir(uploadDir, { recursive: true });
-
-        // Save images and build a map of new paths
-        const pathMap = new Map<string, string>();
-
-        for (const file of files) {
-            const buffer = Buffer.from(await file.arrayBuffer());
-            // Sanitize filename
-            const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-            const filePath = path.join(uploadDir, safeName);
-
-            await writeFile(filePath, buffer);
-
-            // Return RELATIVE path for web serving
-            // Next.js serves "public" at root
-            const webPath = `/uploads/${safeName}`;
-            pathMap.set(file.name, webPath);
-        }
-
-        // If props are provided, we don't need to deeply parse/rewrite them server-side 
-        // if the frontend constructs the final URLs. 
-        // However, if the frontend sends the "raw" props and expects valid paths back in the JSON, we should do it.
-        // Given the new plan, the frontend will use the `pathMap` to construct URLs.
-        // So we just save the JSON "as is" or minimal processing?
-        // Let's just save the JSON provided (which might be the raw render-props)
-        // actually, let's just save what we got.
-
-        let savedPropsPath = "";
-        if (propsJson) {
-            const propsPath = path.join(uploadDir, "render-props.json");
-            await writeFile(propsPath, propsJson);
-            savedPropsPath = "/uploads/render-props.json";
-        }
-
-        // Return the map of filenames to Web Paths
-        const pathsObj = Object.fromEntries(pathMap);
-
-        return NextResponse.json({ success: true, paths: pathsObj, propsPath: savedPropsPath });
-    } catch (e) {
-        console.error(e);
-        return NextResponse.json({ error: "Failed to save assets" }, { status: 500 });
-    }
+/**
+ * Re-randomize all slide layouts
+ */
+export function rerandomizeAllLayouts(slides: SlideConfig[]): SlideConfig[] {
+    return slides.map(rerandomizeSlideLayout);
 }
 ```
 
 ### File: `src/features/composition/SlideLayout.tsx`
-```typescript
+```tsx
 "use client";
 
 /**
@@ -384,6 +331,38 @@ interface SlideLayoutProps {
 }
 
 // ============================================
+// Internal Components
+// ============================================
+
+function FocalAwareImage({ image, className }: { image: ImageWithFocalPoint | { id?: string; url: string; focalPoint?: { x: number; y: number } }, className?: string }) {
+    return (
+        <div className={`relative overflow-hidden w-full h-full group ${className || ''}`}>
+            <Img
+                src={image.url}
+                className="w-full h-full object-cover"
+                style={{
+                    objectPosition: image.focalPoint
+                        ? `${image.focalPoint.x}% ${image.focalPoint.y}%`
+                        : 'center',
+                }}
+            />
+            {/* Visual Debug Indicator for Focal Point */}
+            {image.focalPoint && (
+                <div
+                    className="absolute w-2 h-2 bg-red-500 rounded-full border border-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10"
+                    style={{
+                        left: `${image.focalPoint.x}%`,
+                        top: `${image.focalPoint.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                        boxShadow: '0 0 4px rgba(0,0,0,0.5)'
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+// ============================================
 // Grid Layouts
 // ============================================
 
@@ -396,34 +375,279 @@ function GridLayout({
     gap: number;
     cols: number;
 }) {
+    // Explicitly calculate rows to ensure they fill the height evenly
+    // Otherwise, implicit rows might behave unexpectedly with h-full children
+    const rowCount = Math.ceil(images.length / cols);
+
     return (
         <div
             className="w-full h-full grid"
             style={{
                 gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                // Default to at least 1 row to prevent collapse if empty
+                gridTemplateRows: `repeat(${Math.max(rowCount, 1)}, 1fr)`,
                 gap: `${gap}px`,
                 padding: `${gap}px`,
             }}
         >
             {images.map((img, i) => (
                 <div key={i} className="relative overflow-hidden rounded-lg">
-                    <Img
-                        src={img.url}
-                        className="w-full h-full object-cover"
-                        style={{
-                            objectPosition: img.focalPoint
-                                ? `${img.focalPoint.x}% ${img.focalPoint.y}%`
-                                : 'center',
-                        }}
-                    />
+                    <FocalAwareImage image={img} />
                 </div>
             ))}
         </div>
     );
 }
 
-// ... (Other layouts: HeroLayout, StackedLayout, etc. follow similar patterns)
-// Assuming they all rely on Tailwind utility classes like 'grid', 'absolute', 'flex'.
+// ============================================
+// Hero Layout (Large image + smaller thumbnails)
+// ============================================
+
+function HeroLayout({
+    images,
+    gap,
+    heroPosition,
+}: {
+    images: ImageWithFocalPoint[];
+    gap: number;
+    heroPosition: "left" | "right";
+}) {
+    if (images.length === 0) return null;
+
+    const [hero, ...rest] = images;
+
+    // We restrict the sidebar to at most 4 images
+    const MAX_SIDEBAR_IMAGES = 4;
+    const sidebarImages = rest.slice(0, MAX_SIDEBAR_IMAGES);
+    const sidebarRowCount = Math.max(sidebarImages.length, 1);
+
+    return (
+        <div
+            className="w-full h-full grid"
+            style={{
+                gridTemplateColumns: heroPosition === "left" ? "2fr 1fr" : "1fr 2fr",
+                gap: `${gap}px`,
+                padding: `${gap}px`,
+            }}
+        >
+            {heroPosition === "left" && (
+                <div className="relative overflow-hidden rounded-lg row-span-full">
+                    <FocalAwareImage image={hero} />
+                </div>
+            )}
+
+            <div
+                className="grid h-full"
+                style={{ 
+                    gridTemplateRows: `repeat(${sidebarRowCount}, 1fr)`, 
+                    gap: `${gap}px` 
+                }}
+            >
+                {sidebarImages.map((img, i) => (
+                    <div key={i} className="relative overflow-hidden rounded-lg">
+                        <FocalAwareImage image={img} />
+                    </div>
+                ))}
+            </div>
+
+            {heroPosition === "right" && (
+                <div className="relative overflow-hidden rounded-lg row-span-full">
+                     <FocalAwareImage image={hero} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================
+// Stacked Layout (FR-010: Z-index cycling)
+// ============================================
+
+function StackedLayout({
+    images,
+    durationInFrames,
+}: {
+    images: ImageWithFocalPoint[];
+    durationInFrames: number;
+}) {
+    const frame = useCurrentFrame();
+    const imageCount = images.length;
+
+    if (imageCount === 0) return null;
+
+    // Duration per image being "on top"
+    const framesPerImage = durationInFrames / imageCount;
+
+    return (
+        <AbsoluteFill className="flex items-center justify-center">
+            {images.map((img, i) => {
+                // Calculate which image should be on top at current frame
+                const cyclePosition = Math.floor(frame / framesPerImage) % imageCount;
+                const relativeIndex = (i - cyclePosition + imageCount) % imageCount;
+
+                // Animate position and scale based on z-index
+                const baseOffsetX = (i - imageCount / 2) * 30;
+                const baseOffsetY = (i - imageCount / 2) * 20;
+                const baseRotation = (i - imageCount / 2) * 3;
+                const baseScale = 1 - relativeIndex * 0.05;
+
+                // Smooth transition when cycling
+                const progress = (frame % framesPerImage) / framesPerImage;
+                const scale = interpolate(progress, [0, 0.5, 1], [baseScale, baseScale * 1.02, baseScale]);
+
+                return (
+                    <div
+                        key={i}
+                        className="absolute"
+                        style={{
+                            width: "70%",
+                            height: "70%",
+                            transform: `
+                translateX(${baseOffsetX}px) 
+                translateY(${baseOffsetY}px) 
+                rotate(${baseRotation}deg) 
+                scale(${scale})
+              `,
+                            zIndex: imageCount - relativeIndex,
+                            boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
+                        }}
+                    >
+                        <div className="w-full h-full rounded-lg border-2 border-white/10 overflow-hidden">
+                             <FocalAwareImage image={img} />
+                        </div>
+                    </div>
+                );
+            })}
+        </AbsoluteFill>
+    );
+}
+
+// ============================================
+// Scattered Layout (Random positioning)
+// ============================================
+
+function ScatteredLayout({
+    images,
+    gap,
+}: {
+    images: ImageWithFocalPoint[];
+    gap: number;
+}) {
+    // Pre-calculated positions for consistent renders
+    const positions = [
+        { x: 10, y: 10, w: 50, h: 50, z: 1 },
+        { x: 45, y: 40, w: 40, h: 40, z: 2 },
+        { x: 15, y: 55, w: 35, h: 35, z: 3 },
+        { x: 60, y: 15, w: 30, h: 45, z: 4 },
+        { x: 55, y: 60, w: 35, h: 30, z: 5 },
+        ];
+
+    return (
+        <AbsoluteFill style={{ padding: gap }}>
+            {images.slice(0, 5).map((img, i) => {
+                const pos = positions[i % positions.length];
+                return (
+                    <div
+                        key={i}
+                        className="absolute rounded-lg overflow-hidden"
+                        style={{
+                            left: `${pos.x}%`,
+                            top: `${pos.y}%`,
+                            width: `${pos.w}%`,
+                            height: `${pos.h}%`,
+                            zIndex: pos.z,
+                            boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                        }}
+                    >
+                        <FocalAwareImage image={img} />
+                    </div>
+                );
+            })}
+        </AbsoluteFill>
+    );
+}
+
+// ============================================
+// Mosaic Layout (2-row asymmetric)
+// ============================================
+
+function MosaicLayout({
+    images,
+    gap,
+}: {
+    images: { url: string; focalPoint?: { x: number, y: number } }[];
+    gap: number;
+}) {
+    if (images.length === 0) return null;
+
+    return (
+        <div
+            className="w-full h-full grid"
+            style={{
+                gridTemplateColumns: "1fr 1fr",
+                gridTemplateRows: "1fr 1fr",
+                gap: `${gap}px`,
+                padding: `${gap}px`,
+            }}
+        >
+            {/* First image spans full width */}
+            <div className="col-span-2 relative overflow-hidden rounded-lg">
+                <FocalAwareImage image={images[0]} />
+            </div>
+
+            {/* Bottom two images */}
+            {images.slice(1, 3).map((img, i) => (
+                <div key={i} className="relative overflow-hidden rounded-lg">
+                    <FocalAwareImage image={img} />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ============================================
+// Bento Layout (Mixed sizes)
+// ============================================
+
+function BentoLayout({
+    images,
+    gap,
+}: {
+    images: { url: string; focalPoint?: { x: number, y: number } }[];
+    gap: number;
+}) {
+    return (
+        <div
+            className="w-full h-full grid"
+            style={{
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gridTemplateRows: "repeat(2, 1fr)",
+                gap: `${gap}px`,
+                padding: `${gap}px`,
+            }}
+        >
+            {images[0] && (
+                <div className="col-span-2 row-span-2 relative overflow-hidden rounded-lg">
+                    <FocalAwareImage image={images[0]} />
+                </div>
+            )}
+            {images[1] && (
+                <div className="col-span-2 relative overflow-hidden rounded-lg">
+                    <FocalAwareImage image={images[1]} />
+                </div>
+            )}
+            {images.slice(2, 4).map((img, i) => (
+                <div key={i} className="relative overflow-hidden rounded-lg">
+                    <FocalAwareImage image={img} />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ============================================
+// Main Slide Layout Component
+// ============================================
 
 export function SlideLayout({
     images,
@@ -452,11 +676,25 @@ function renderLayout(
             return <GridLayout images={images} gap={gap} cols={3} />;
         case "grid-3x3":
             return <GridLayout images={images} gap={gap} cols={3} />;
-        // ...
+        case "hero-left":
+            return <HeroLayout images={images} gap={gap} heroPosition="left" />;
+        case "hero-right":
+            return <HeroLayout images={images} gap={gap} heroPosition="right" />;
+        case "bento":
+            return <BentoLayout images={images} gap={gap} />;
+        case "mosaic":
+            return <MosaicLayout images={images} gap={gap} />;
+        case "split-vertical":
+            return <GridLayout images={images} gap={gap} cols={2} />;
+        case "stacked":
+            return <StackedLayout images={images} durationInFrames={durationInFrames} />;
+        case "scattered":
+            return <ScatteredLayout images={images} gap={gap} />;
         default:
             return <GridLayout images={images} gap={gap} cols={2} />;
     }
 }
+
 ```
 
 ---
@@ -465,17 +703,13 @@ function renderLayout(
 
 **Attention: Senior AI Orchestrator**
 
-You have received this Escalation Handoff Report.
-The local agent has stabilized the build (errors are gone) but failed to replicate the **visual fidelity** of the Editor Preview in the exported video.
+You have received this Escalation Handoff Report. A local agent has failed to solve this problem.
 
 **Your Directive:**
-1.  **Analyze the Failure:** Review the Tailwind CSS integration with Remotion.
-    -   Is `remotion.config.ts` correctly set up to handle PostCSS/Tailwind?
-    -   Why does `import "./app/globals.css"` not seemingly fix the layout issues?
-    -   Is there a version mismatch or a specific Remotion + Next.js + Tailwind configuration requirement we are missing?
+1.  **Analyze the Failure:** Focus on the `groupImagesIntoSlides` function. It likely pushes identical image references into the array for recycling. When React renders this list, duplicate identities/references might be causing rendering issues (blanks).
 2.  **Formulate a New Plan:**
-    -   Likely need to add `enableTailwind: true` (or similar) to `remotion.config.ts` if using the Remotion Webpack override helper, OR ensure PostCSS loader is correctly configured.
-    -   Verify the path alias `j` vs `@` or other subtle webpack issues.
-3.  **Execute:** Implement the correct Tailwind configuration for Remotion CLI to ensure grids and layouts render exactly as they do in the Next.js app.
+    -   **Fix Recycling:** Modify the padding logic to deep-clone the image object and assign a *new specific ID* (e.g., `recycled-uuid`).
+    -   **Fix Rows:** Double check `minmax` usage in CSS grid.
+3.  **Execute:** Implement these fixes immediately.
 
 **Begin your analysis now.**

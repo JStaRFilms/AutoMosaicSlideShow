@@ -96,6 +96,7 @@ export interface ProjectConfig {
   totalDurationSeconds: number; // Total video duration
   enabledTransitions: TransitionType[];
   randomizeTransitions: boolean;
+  allowedStyles: string[]; // "grid", "hero", "stacked", "scattered"
 }
 
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
@@ -107,6 +108,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   totalDurationSeconds: 30,
   enabledTransitions: ["fade", "slide-left", "slide-right"],
   randomizeTransitions: true,
+  allowedStyles: ["grid", "hero", "stacked", "scattered"],
 };
 
 // ============================================

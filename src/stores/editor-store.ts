@@ -35,6 +35,9 @@ interface EditorStore {
     // Transition Settings
     toggleTransition: (transition: TransitionType) => void;
 
+    // Layout Style Settings
+    toggleLayoutStyle: (style: string) => void;
+
     // Playback State
     isPlaying: boolean;
     setIsPlaying: (playing: boolean) => void;
@@ -80,84 +83,118 @@ async function createImageAsset(file: File): Promise<ImageAsset> {
 // Store Implementation
 // ============================================
 
-export const useEditorStore = create<EditorStore>((set, get) => ({
-    // Image Assets
-    images: [],
+import { persist } from "zustand/middleware";
 
-    addImages: async (files: File[]) => {
-        const imageFiles = files.filter((f) => f.type.startsWith("image/"));
-        const newAssets = await Promise.all(imageFiles.map(createImageAsset));
-        set((state) => ({ images: [...state.images, ...newAssets] }));
-    },
+export const useEditorStore = create<EditorStore>()(
+    persist(
+        (set, get) => ({
+            // Image Assets
+            images: [],
 
-    removeImage: (id: string) => {
-        const image = get().images.find((img) => img.id === id);
-        if (image) {
-            URL.revokeObjectURL(image.url);
-        }
-        set((state) => ({
-            images: state.images.filter((img) => img.id !== id),
-        }));
-    },
+            addImages: async (files: File[]) => {
+                const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+                const newAssets = await Promise.all(imageFiles.map(createImageAsset));
+                set((state) => ({ images: [...state.images, ...newAssets] }));
+            },
 
-    clearImages: () => {
-        get().images.forEach((img) => URL.revokeObjectURL(img.url));
-        set({ images: [], slides: [] });
-    },
+            removeImage: (id: string) => {
+                const image = get().images.find((img) => img.id === id);
+                if (image) {
+                    URL.revokeObjectURL(image.url);
+                }
+                set((state) => ({
+                    images: state.images.filter((img) => img.id !== id),
+                }));
+            },
 
-    setImageFocalPoint: (imageId: string, focalPoint: FocalPoint) => {
-        set((state) => ({
-            images: state.images.map((img) =>
-                img.id === imageId ? { ...img, focalPoint } : img
-            ),
-        }));
-    },
+            clearImages: () => {
+                get().images.forEach((img) => URL.revokeObjectURL(img.url));
+                set({ images: [], slides: [] });
+            },
 
-    reorderImages: (fromIndex: number, toIndex: number) => {
-        set((state) => {
-            const newImages = [...state.images];
-            const [removed] = newImages.splice(fromIndex, 1);
-            newImages.splice(toIndex, 0, removed);
-            return { images: newImages };
-        });
-    },
+            setImageFocalPoint: (imageId: string, focalPoint: FocalPoint) => {
+                set((state) => ({
+                    images: state.images.map((img) =>
+                        img.id === imageId ? { ...img, focalPoint } : img
+                    ),
+                }));
+            },
 
-    // Slides
-    slides: [],
-    setSlides: (slides) => set({ slides }),
+            reorderImages: (fromIndex: number, toIndex: number) => {
+                set((state) => {
+                    const newImages = [...state.images];
+                    const [removed] = newImages.splice(fromIndex, 1);
+                    newImages.splice(toIndex, 0, removed);
+                    return { images: newImages };
+                });
+            },
 
-    // Config
-    config: DEFAULT_PROJECT_CONFIG,
+            // Slides
+            slides: [],
+            setSlides: (slides) => set({ slides }),
 
-    updateConfig: (key, value) =>
-        set((state) => ({
-            config: { ...state.config, [key]: value },
-        })),
+            // Config
+            config: DEFAULT_PROJECT_CONFIG,
 
-    // Transitions
-    toggleTransition: (transition) =>
-        set((state) => {
-            const enabled = state.config.enabledTransitions;
-            const isEnabled = enabled.includes(transition);
-            return {
-                config: {
-                    ...state.config,
-                    enabledTransitions: isEnabled
-                        ? enabled.filter((t) => t !== transition)
-                        : [...enabled, transition],
-                },
-            };
+            updateConfig: (key, value) =>
+                set((state) => ({
+                    config: { ...state.config, [key]: value },
+                })),
+
+            // Transitions
+            toggleTransition: (transition) =>
+                set((state) => {
+                    const enabled = state.config.enabledTransitions;
+                    const isEnabled = enabled.includes(transition);
+                    return {
+                        config: {
+                            ...state.config,
+                            enabledTransitions: isEnabled
+                                ? enabled.filter((t) => t !== transition)
+                                : [...enabled, transition],
+                        },
+                    };
+                }),
+
+            // Layout Styles
+            toggleLayoutStyle: (style) =>
+                set((state) => {
+                    const allowed = state.config.allowedStyles || [];
+                    const isAllowed = allowed.includes(style);
+                    let newAllowed;
+
+                    if (isAllowed) {
+                        newAllowed = allowed.filter((s) => s !== style);
+                    } else {
+                        newAllowed = [...allowed, style];
+                    }
+
+                    // Enforce at least one style is selected (fallback to grid if empty)
+                    if (newAllowed.length === 0) newAllowed = ["grid"];
+
+                    return {
+                        config: {
+                            ...state.config,
+                            allowedStyles: newAllowed,
+                        },
+                    };
+                }),
+
+            // Playback
+            isPlaying: false,
+            setIsPlaying: (playing) => set({ isPlaying: playing }),
+            currentFrame: 0,
+            setCurrentFrame: (frame) => set({ currentFrame: frame }),
+
+            // Export
+            isExporting: false,
+            exportProgress: 0,
+            setExportProgress: (progress) => set({ exportProgress: progress }),
+            setIsExporting: (exporting) => set({ isExporting: exporting }),
         }),
-
-    // Playback
-    isPlaying: false,
-    setIsPlaying: (playing) => set({ isPlaying: playing }),
-    currentFrame: 0,
-    setCurrentFrame: (frame) => set({ currentFrame: frame }),
-
-    // Export
-    isExporting: false,
-    exportProgress: 0,
-    setExportProgress: (progress) => set({ exportProgress: progress }),
-    setIsExporting: (exporting) => set({ isExporting: exporting }),
-}));
+        {
+            name: "automosaic-storage",
+            partialize: (state) => ({ config: state.config }), // Only persist config
+        }
+    )
+);

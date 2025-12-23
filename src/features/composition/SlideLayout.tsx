@@ -13,6 +13,10 @@ import type { LayoutType, ImageAsset } from "@/lib/types";
 // Layout Component Props
 // ============================================
 
+// ============================================
+// Layout Component Props
+// ============================================
+
 interface ImageWithFocalPoint {
     id: string;
     url: string;
@@ -28,6 +32,38 @@ interface SlideLayoutProps {
 }
 
 // ============================================
+// Internal Components
+// ============================================
+
+function FocalAwareImage({ image, className }: { image: ImageWithFocalPoint | { id?: string; url: string; focalPoint?: { x: number; y: number } }, className?: string }) {
+    return (
+        <div className={`relative overflow-hidden w-full h-full group ${className || ''}`}>
+            <Img
+                src={image.url}
+                className="w-full h-full object-cover"
+                style={{
+                    objectPosition: image.focalPoint
+                        ? `${image.focalPoint.x}% ${image.focalPoint.y}%`
+                        : 'center',
+                }}
+            />
+            {/* Visual Debug Indicator for Focal Point */}
+            {image.focalPoint && (
+                <div
+                    className="absolute w-2 h-2 bg-red-500 rounded-full border border-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10"
+                    style={{
+                        left: `${image.focalPoint.x}%`,
+                        top: `${image.focalPoint.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                        boxShadow: '0 0 4px rgba(0,0,0,0.5)'
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+// ============================================
 // Grid Layouts
 // ============================================
 
@@ -40,26 +76,24 @@ function GridLayout({
     gap: number;
     cols: number;
 }) {
+    // Explicitly calculate rows to ensure they fill the height evenly
+    // Otherwise, implicit rows might behave unexpectedly with h-full children
+    const rowCount = Math.ceil(images.length / cols);
+
     return (
         <div
             className="w-full h-full grid"
             style={{
                 gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                // Use minmax(0, 1fr) to prevent content from forcing rows larger than available space
+                gridTemplateRows: `repeat(${Math.max(rowCount, 1)}, minmax(0, 1fr))`,
                 gap: `${gap}px`,
                 padding: `${gap}px`,
             }}
         >
             {images.map((img, i) => (
                 <div key={i} className="relative overflow-hidden rounded-lg">
-                    <Img
-                        src={img.url}
-                        className="w-full h-full object-cover"
-                        style={{
-                            objectPosition: img.focalPoint
-                                ? `${img.focalPoint.x}% ${img.focalPoint.y}%`
-                                : 'center',
-                        }}
-                    />
+                    <FocalAwareImage image={img} />
                 </div>
             ))}
         </div>
@@ -83,6 +117,11 @@ function HeroLayout({
 
     const [hero, ...rest] = images;
 
+    // We restrict the sidebar to at most 4 images
+    const MAX_SIDEBAR_IMAGES = 4;
+    const sidebarImages = rest.slice(0, MAX_SIDEBAR_IMAGES);
+    const sidebarRowCount = Math.max(sidebarImages.length, 1);
+
     return (
         <div
             className="w-full h-full grid"
@@ -94,48 +133,27 @@ function HeroLayout({
         >
             {heroPosition === "left" && (
                 <div className="relative overflow-hidden rounded-lg row-span-full">
-                    <Img
-                        src={hero.url}
-                        className="w-full h-full object-cover"
-                        style={{
-                            objectPosition: hero.focalPoint
-                                ? `${hero.focalPoint.x}% ${hero.focalPoint.y}%`
-                                : 'center',
-                        }}
-                    />
+                    <FocalAwareImage image={hero} />
                 </div>
             )}
 
             <div
-                className="grid"
-                style={{ gridTemplateRows: `repeat(${Math.max(rest.length, 1)}, 1fr)`, gap: `${gap}px` }}
+                className="grid h-full"
+                style={{
+                    gridTemplateRows: `repeat(${sidebarRowCount}, minmax(0, 1fr))`,
+                    gap: `${gap}px`
+                }}
             >
-                {rest.slice(0, 4).map((img, i) => (
+                {sidebarImages.map((img, i) => (
                     <div key={i} className="relative overflow-hidden rounded-lg">
-                        <Img
-                            src={img.url}
-                            className="w-full h-full object-cover"
-                            style={{
-                                objectPosition: img.focalPoint
-                                    ? `${img.focalPoint.x}% ${img.focalPoint.y}%`
-                                    : 'center',
-                            }}
-                        />
+                        <FocalAwareImage image={img} />
                     </div>
                 ))}
             </div>
 
             {heroPosition === "right" && (
                 <div className="relative overflow-hidden rounded-lg row-span-full">
-                    <Img
-                        src={hero.url}
-                        className="w-full h-full object-cover"
-                        style={{
-                            objectPosition: hero.focalPoint
-                                ? `${hero.focalPoint.x}% ${hero.focalPoint.y}%`
-                                : 'center',
-                        }}
-                    />
+                    <FocalAwareImage image={hero} />
                 </div>
             )}
         </div>
@@ -195,10 +213,9 @@ function StackedLayout({
                             boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
                         }}
                     >
-                        <Img
-                            src={img.url}
-                            className="w-full h-full object-cover rounded-lg border-2 border-white/10"
-                        />
+                        <div className="w-full h-full rounded-lg border-2 border-white/10 overflow-hidden">
+                            <FocalAwareImage image={img} />
+                        </div>
                     </div>
                 );
             })}
@@ -243,7 +260,7 @@ function ScatteredLayout({
                             boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
                         }}
                     >
-                        <Img src={img.url} className="w-full h-full object-cover" />
+                        <FocalAwareImage image={img} />
                     </div>
                 );
             })}
@@ -259,7 +276,7 @@ function MosaicLayout({
     images,
     gap,
 }: {
-    images: { url: string }[];
+    images: { url: string; focalPoint?: { x: number, y: number } }[];
     gap: number;
 }) {
     if (images.length === 0) return null;
@@ -269,20 +286,20 @@ function MosaicLayout({
             className="w-full h-full grid"
             style={{
                 gridTemplateColumns: "1fr 1fr",
-                gridTemplateRows: "1fr 1fr",
+                gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)",
                 gap: `${gap}px`,
                 padding: `${gap}px`,
             }}
         >
             {/* First image spans full width */}
             <div className="col-span-2 relative overflow-hidden rounded-lg">
-                <Img src={images[0].url} className="w-full h-full object-cover" />
+                <FocalAwareImage image={images[0]} />
             </div>
 
             {/* Bottom two images */}
             {images.slice(1, 3).map((img, i) => (
                 <div key={i} className="relative overflow-hidden rounded-lg">
-                    <Img src={img.url} className="w-full h-full object-cover" />
+                    <FocalAwareImage image={img} />
                 </div>
             ))}
         </div>
@@ -297,7 +314,7 @@ function BentoLayout({
     images,
     gap,
 }: {
-    images: { url: string }[];
+    images: { url: string; focalPoint?: { x: number, y: number } }[];
     gap: number;
 }) {
     return (
@@ -305,24 +322,24 @@ function BentoLayout({
             className="w-full h-full grid"
             style={{
                 gridTemplateColumns: "repeat(4, 1fr)",
-                gridTemplateRows: "repeat(2, 1fr)",
+                gridTemplateRows: "repeat(2, minmax(0, 1fr))",
                 gap: `${gap}px`,
                 padding: `${gap}px`,
             }}
         >
             {images[0] && (
                 <div className="col-span-2 row-span-2 relative overflow-hidden rounded-lg">
-                    <Img src={images[0].url} className="w-full h-full object-cover" />
+                    <FocalAwareImage image={images[0]} />
                 </div>
             )}
             {images[1] && (
                 <div className="col-span-2 relative overflow-hidden rounded-lg">
-                    <Img src={images[1].url} className="w-full h-full object-cover" />
+                    <FocalAwareImage image={images[1]} />
                 </div>
             )}
             {images.slice(2, 4).map((img, i) => (
                 <div key={i} className="relative overflow-hidden rounded-lg">
-                    <Img src={img.url} className="w-full h-full object-cover" />
+                    <FocalAwareImage image={img} />
                 </div>
             ))}
         </div>

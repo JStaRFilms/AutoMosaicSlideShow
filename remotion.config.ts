@@ -48,4 +48,4 @@ Config.overrideWebpackConfig((currentConfiguration) => {
     };
 });
 
-// Config.setChromiumDisableWebSecurity(true);
+Config.setChromiumDisableWebSecurity(true);

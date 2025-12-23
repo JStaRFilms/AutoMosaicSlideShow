@@ -87,9 +87,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         }
     };
 
-    // Clean Pnpm command pointing to the local props file
-    // Added --concurrency=1 to prevent "socket hang up" or "EncodingError" when serving many large local files concurrently
-    const command = `pnpm exec remotion render src/index.ts AutoMosaic out/${config.name.replace(/\s+/g, "_")}.mp4 --props=./public/uploads/render-props.json --concurrency=1`;
+    // We removed --concurrency=1 to allow multi-core rendering (much faster).
+    // If you experience "socket hang up" errors with many images, try adding --concurrency=1 back manually.
+    const command = `pnpm exec remotion render src/index.ts AutoMosaic out/${config.name.replace(/\s+/g, "_")}.mp4 --props=./public/uploads/render-props.json`;
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(command);

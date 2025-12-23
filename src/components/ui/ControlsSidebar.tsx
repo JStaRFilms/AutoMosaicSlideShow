@@ -28,6 +28,9 @@ const LAYOUT_OPTIONS = [
 ] as const;
 
 function LayoutStyleSection() {
+    const config = useEditorStore((s) => s.config);
+    const toggleLayoutStyle = useEditorStore((s) => s.toggleLayoutStyle);
+
     return (
         <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between mb-4">
@@ -37,17 +40,21 @@ function LayoutStyleSection() {
                 <LayoutGrid className="w-4 h-4 text-secondary" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-                {LAYOUT_OPTIONS.map((option, i) => {
+                {LAYOUT_OPTIONS.map((option) => {
                     const Icon = option.icon;
-                    const isActive = i === 0; // Default to first option
+                    // Check if style is allowed (enabled)
+                    // We default to true if allowedStyles is undefined (legacy safety)
+                    const isAllowed = config.allowedStyles?.includes(option.id) ?? true;
+
                     return (
                         <button
                             key={option.id}
+                            onClick={() => toggleLayoutStyle(option.id)}
                             className={`
                 flex flex-col items-center justify-center p-3 rounded-lg border transition-colors
-                ${isActive
+                ${isAllowed
                                     ? "border-accent bg-accent/5 text-accent"
-                                    : "border-surface-highlight bg-surface hover:border-secondary text-secondary hover:text-primary"
+                                    : "border-surface-highlight bg-surface hover:border-secondary text-secondary hover:text-primary opacity-60"
                                 }
               `}
                         >
@@ -127,12 +134,15 @@ function CanvasSettingsSection() {
             <div>
                 <div className="flex items-center justify-between mb-2">
                     <label className="text-xs text-secondary">Total Duration</label>
-                    <span className="text-xs font-mono text-accent">{config.totalDurationSeconds}s</span>
+                    <span className="text-xs font-mono text-accent">
+                        {config.totalDurationSeconds}s
+                        {config.totalDurationSeconds >= 60 && ` (${Math.floor(config.totalDurationSeconds / 60)}m ${config.totalDurationSeconds % 60}s)`}
+                    </span>
                 </div>
                 <input
                     type="range"
                     min="5"
-                    max="120"
+                    max="300"
                     value={config.totalDurationSeconds}
                     onChange={(e) => updateConfig("totalDurationSeconds", Number(e.target.value))}
                     className="w-full h-1 bg-surface-highlight rounded-lg appearance-none cursor-pointer accent-accent"

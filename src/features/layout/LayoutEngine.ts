@@ -8,6 +8,14 @@
 
 import type { ImageAsset, LayoutType, SlideConfig, LayoutConfig } from "@/lib/types";
 
+// Maps "Style Categories" (UI) to specific "Layout Types" (Engine)
+const STYLE_TO_LAYOUTS: Record<string, LayoutType[]> = {
+    grid: ["grid-2x2", "grid-3x2", "grid-3x3", "bento", "mosaic", "split-vertical"],
+    hero: ["hero-left", "hero-right"],
+    stacked: ["stacked"],
+    scattered: ["scattered"],
+};
+
 // ============================================
 // Layout Templates by Image Count
 // ============================================
@@ -17,12 +25,12 @@ const LAYOUTS_BY_COUNT: Record<number, LayoutType[]> = {
     2: ["split-vertical", "hero-left", "hero-right"],
     3: ["mosaic", "stacked", "scattered", "hero-left"],
     4: ["grid-2x2", "hero-left", "hero-right", "bento"],
-    5: ["bento", "grid-3x2"],
-    6: ["grid-3x2", "grid-3x3", "bento"],
+    5: ["grid-3x2"], // Bento only supports 4 slots currently
+    6: ["grid-3x2", "grid-3x3"],
 };
 
 // Fallback for 7+ images
-const LARGE_GROUP_LAYOUTS: LayoutType[] = ["grid-3x3", "grid-3x2", "bento"];
+const LARGE_GROUP_LAYOUTS: LayoutType[] = ["grid-3x3", "grid-3x2"];
 
 // ============================================
 // Utility Functions
@@ -49,11 +57,38 @@ function generateId(): string {
 // Layout Selection
 // ============================================
 
-function selectLayoutForCount(count: number): LayoutType {
+function selectLayoutForCount(count: number, allowedStyles: string[] = []): LayoutType {
     if (count <= 0) return "grid-2x2";
 
-    const layouts = LAYOUTS_BY_COUNT[count] || LARGE_GROUP_LAYOUTS;
-    return randomChoice(layouts);
+    // 1. Get all technically possible layouts for this image count
+    const possibleLayouts = LAYOUTS_BY_COUNT[count] || LARGE_GROUP_LAYOUTS;
+
+    // 2. If no styles specified (or all empty), default to all possible
+    if (!allowedStyles || allowedStyles.length === 0) {
+        return randomChoice(possibleLayouts);
+    }
+
+    // 3. Flatten allowed styles into a Set of allowed LayoutTypes
+    const allowedLayoutTypes = new Set<LayoutType>();
+    allowedStyles.forEach(style => {
+        const types = STYLE_TO_LAYOUTS[style];
+        if (types) {
+            types.forEach(t => allowedLayoutTypes.add(t));
+        }
+    });
+
+    // 4. Filter possible layouts against permitted types
+    const candidates = possibleLayouts.filter(l => allowedLayoutTypes.has(l));
+
+    // 5. Fallback: If filtering leaves nothing (e.g. user selected "Stacked" but we have 6 images),
+    // revert to Grid basics to ensure we show *something*.
+    if (candidates.length === 0) {
+        // Prefer grid if available in possible list, otherwise just take anything possible
+        const fallback = possibleLayouts.find(l => l.startsWith("grid")) || possibleLayouts[0];
+        return fallback;
+    }
+
+    return randomChoice(candidates);
 }
 
 // ============================================
@@ -82,6 +117,7 @@ function groupImagesIntoSlides(
     const groups: ImageAsset[][] = [];
     let remaining = [...images];
 
+    // standard grouping logic
     while (remaining.length > 0) {
         // Vary group size for visual interest
         let groupSize: number;
@@ -97,6 +133,8 @@ function groupImagesIntoSlides(
         }
 
         // Ensure we don't leave orphan images
+        // If the remaining after this group would be too small to form a valid slide (less than minPerSlide)
+        // then just take everything now.
         if (remaining.length - groupSize < minPerSlide && remaining.length > groupSize) {
             groupSize = remaining.length;
         }
@@ -104,6 +142,36 @@ function groupImagesIntoSlides(
         groups.push(remaining.slice(0, groupSize));
         remaining = remaining.slice(groupSize);
     }
+
+    // Post-process: Pad small groups (specifically the last one) with recycled images
+    // to ensure better layouts (e.g., minimum 3 images for density).
+    const MIN_DENSE_COUNT = 3;
+    const TARGET_PAD_COUNT = 4; // Target size when padding (good for 2x2 grid)
+
+    groups.forEach((group, index) => {
+        // Only pad if:
+        // 1. It's a small group (< 3)
+        // 2. We have enough total images in the project to borrow from
+        // 3. It's not the ONLY group (unless we really want to repeat images in a single slide? No, that's weird)
+        if (group.length < MIN_DENSE_COUNT && images.length >= TARGET_PAD_COUNT) {
+            const needed = TARGET_PAD_COUNT - group.length;
+
+            // Pool of potential images to recycle (all images excluding current group members)
+            const currentIds = new Set(group.map(img => img.id));
+            const pool = images.filter(img => !currentIds.has(img.id));
+
+            if (pool.length >= needed) {
+                const shuffledPool = shuffleArray(pool);
+                const paddingImages = shuffledPool.slice(0, needed).map(img => ({
+                    ...img,
+                    id: `${img.id}_recycled_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
+                }));
+
+                // Add padding images to the group
+                group.push(...paddingImages);
+            }
+        }
+    });
 
     return groups;
 }
@@ -157,6 +225,7 @@ export interface LayoutEngineOptions {
     maxPerSlide?: number;
     totalDurationSeconds?: number;
     fps?: number;
+    allowedStyles?: string[];
 }
 
 /**
@@ -172,6 +241,7 @@ export function generateSlides(
         maxPerSlide = 6,
         totalDurationSeconds = 30,
         fps = 30,
+        allowedStyles = ["grid", "hero", "stacked", "scattered"],
     } = options;
 
     if (images.length === 0) return [];
@@ -185,7 +255,7 @@ export function generateSlides(
 
     // 2. Assign layouts to each group
     const slides: SlideConfig[] = groups.map((group) => {
-        const layoutType = selectLayoutForCount(group.length);
+        const layoutType = selectLayoutForCount(group.length, allowedStyles);
 
         return {
             id: generateId(),
@@ -209,9 +279,9 @@ export function generateSlides(
 /**
  * Re-randomize layout for a single slide
  */
-export function rerandomizeSlideLayout(slide: SlideConfig): SlideConfig {
+export function rerandomizeSlideLayout(slide: SlideConfig, allowedStyles: string[] = []): SlideConfig {
     const imageCount = slide.layout.images.length;
-    const newLayoutType = selectLayoutForCount(imageCount);
+    const newLayoutType = selectLayoutForCount(imageCount, allowedStyles);
 
     return {
         ...slide,
@@ -225,6 +295,6 @@ export function rerandomizeSlideLayout(slide: SlideConfig): SlideConfig {
 /**
  * Re-randomize all slide layouts
  */
-export function rerandomizeAllLayouts(slides: SlideConfig[]): SlideConfig[] {
-    return slides.map(rerandomizeSlideLayout);
+export function rerandomizeAllLayouts(slides: SlideConfig[], allowedStyles: string[] = []): SlideConfig[] {
+    return slides.map(s => rerandomizeSlideLayout(s, allowedStyles));
 }
