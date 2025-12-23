@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoMosaic / Design System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        background: '#09090b', // Zinc 950
+                        surface: '#18181b',    // Zinc 900
+                        surfaceHighlight: '#27272a', // Zinc 800
+                        border: '#27272a',     // Zinc 800
+                        primary: '#fafafa',    // White
+                        primaryDim: '#e4e4e7', // Zinc 200
+                        secondary: '#a1a1aa',  // Zinc 400
+                        accent: '#3b82f6',     // Blue 500
+                        accentHover: '#2563eb', // Blue 600
+                        danger: '#ef4444',     // Red 500
+                        success: '#10b981',    // Emerald 500
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Heroicons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(24, 24, 27, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+
+<body class="p-8 space-y-12 bg-background text-primary">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between pb-8 border-b border-border">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-primary">AutoMosaic <span
+                    class="text-secondary font-normal text-xl ml-2">Design System</span></h1>
+            <p class="text-secondary mt-2">Vibe: Sleek, Dark Mode Studio, Elegant.</p>
+        </div>
+        <div class="px-4 py-2 bg-surfaceHighlight rounded-full text-xs font-mono text-secondary">
+            v1.0.0
+        </div>
+    </header>
+
+    <!-- Colors -->
+    <section>
+        <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><i data-lucide="palette"></i> Color Palette</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- Backgrounds -->
+            <div class="space-y-2">
+                <div
+                    class="h-24 rounded-lg bg-background border border-border flex items-center justify-center text-xs text-secondary">
+                    Background</div>
+                <p class="text-sm font-medium">Background</p>
+                <p class="text-xs text-secondary">#09090b (Zinc 950)</p>
+            </div>
+            <div class="space-y-2">
+                <div
+                    class="h-24 rounded-lg bg-surface border border-border flex items-center justify-center text-xs text-secondary">
+                    Surface</div>
+                <p class="text-sm font-medium">Surface</p>
+                <p class="text-xs text-secondary">#18181b (Zinc 900)</p>
+            </div>
+            <div class="space-y-2">
+                <div
+                    class="h-24 rounded-lg bg-surfaceHighlight border border-border flex items-center justify-center text-xs text-secondary">
+                    Highlight</div>
+                <p class="text-sm font-medium">Highlight / Border</p>
+                <p class="text-xs text-secondary">#27272a (Zinc 800)</p>
+            </div>
+            <div class="space-y-2">
+                <div class="h-24 rounded-lg bg-accent text-white flex items-center justify-center text-xs">Accent</div>
+                <p class="text-sm font-medium">Accent</p>
+                <p class="text-xs text-secondary">#3b82f6 (Blue 500)</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Typography -->
+    <section>
+        <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><i data-lucide="type"></i> Typography</h2>
+        <div class="space-y-8 border border-border rounded-xl p-6 bg-surface">
+            <div>
+                <h1 class="text-4xl font-bold tracking-tight">Heading 1 - Elegant Studio</h1>
+                <p class="text-xs text-secondary mt-1">Inter Bold / 36px / Tight Tracking</p>
+            </div>
+            <div>
+                <h2 class="text-2xl font-semibold tracking-tight">Heading 2 - Section Title</h2>
+                <p class="text-xs text-secondary mt-1">Inter Semibold / 24px</p>
+            </div>
+            <div>
+                <h3 class="text-xl font-medium text-primaryDim">Heading 3 - Card Title</h3>
+                <p class="text-xs text-secondary mt-1">Inter Medium / 20px</p>
+            </div>
+            <div class="max-w-xl">
+                <p class="text-base text-secondary leading-relaxed">
+                    Body Text - This is what standard description text looks like. It is optimized for readability
+                    against dark backgrounds. We use a slightly muted gray (Zinc 400) to reduce eye strain during long
+                    editing sessions.
+                </p>
+                <p class="text-xs text-secondary mt-1">Inter Regular / 16px / Relaxed Leading</p>
+            </div>
+            <div>
+                <p class="text-xs font-mono text-accent">MONOSPACED_DATA_TEXT</p>
+                <p class="text-xs text-secondary mt-1">Inter / 12px</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Components -->
+    <section>
+        <h2 class="text-xl font-semibold mb-6 flex items-center gap-2"><i data-lucide="component"></i> Components</h2>
+        <div class="grid md:grid-cols-2 gap-8">
+
+            <!-- Buttons -->
+            <div class="space-y-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wider">Buttons</h3>
+                <div class="flex flex-wrap gap-4 items-center">
+                    <button
+                        class="px-4 py-2 bg-primary text-black font-semibold rounded-md shadow hover:bg-white transition-all text-sm">
+                        Primary Action
+                    </button>
+                    <button
+                        class="px-4 py-2 bg-surfaceHighlight border border-white/10 text-primary font-medium rounded-md hover:bg-zinc-700 transition-all text-sm">
+                        Secondary Action
+                    </button>
+                    <button
+                        class="px-4 py-2 bg-accent/10 text-accent border border-accent/20 font-medium rounded-md hover:bg-accent/20 transition-all text-sm flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i> AI Generate
+                    </button>
+                    <button class="p-2 text-secondary hover:text-primary transition-colors">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Form Elements -->
+            <div class="space-y-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wider">Inputs</h3>
+                <div class="space-y-4 max-w-sm">
+                    <div>
+                        <label class="block text-xs font-medium text-secondary mb-1.5">Project Name</label>
+                        <input type="text" value="Summer Vacation 2025"
+                            class="w-full bg-background border border-surfaceHighlight rounded-md px-3 py-2 text-sm text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder-zinc-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-secondary mb-1.5">Resolution</label>
+                        <select
+                            class="w-full bg-background border border-surfaceHighlight rounded-md px-3 py-2 text-sm text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all">
+                            <option>1080p (Landscape)</option>
+                            <option>4K (Landscape)</option>
+                            <option>9:16 (Vertical)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cards -->
+            <div class="md:col-span-2 space-y-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wider">Cards & Surfaces</h3>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <!-- Standard Card -->
+                    <div
+                        class="bg-surface border border-surfaceHighlight rounded-xl p-6 hover:border-gray-700 transition-colors">
+                        <div
+                            class="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center mb-4 text-accent">
+                            <i data-lucide="image"></i>
+                        </div>
+                        <h4 class="text-sm font-semibold text-primary">Image Import</h4>
+                        <p class="text-xs text-secondary mt-2">Drag and drop folders directly into the browser.</p>
+                    </div>
+
+                    <!-- Active State -->
+                    <div class="bg-surface border border-accent/50 rounded-xl p-6 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-3 opacity-20">
+                            <i data-lucide="check-circle" class="w-12 h-12 text-accent"></i>
+                        </div>
+                        <h4 class="text-sm font-semibold text-primary">Layout Engine</h4>
+                        <p class="text-xs text-secondary mt-2">Currently processing: <span class="text-accent">Grid
+                                3x3</span></p>
+                        <div class="h-1 w-full bg-surfaceHighlight rounded-full mt-4 overflow-hidden">
+                            <div class="h-full bg-accent w-2/3"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>

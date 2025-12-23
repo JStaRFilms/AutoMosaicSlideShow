@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoMosaic / Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        background: '#09090b', // Zinc 950
+                        surface: '#18181b',    // Zinc 900
+                        surfaceHighlight: '#27272a', // Zinc 800
+                        border: '#27272a',     // Zinc 800
+                        primary: '#fafafa',    // White
+                        primaryDim: '#e4e4e7', // Zinc 200
+                        secondary: '#a1a1aa',  // Zinc 400
+                        accent: '#3b82f6',     // Blue 500
+                        accentHover: '#2563eb', // Blue 600
+                        danger: '#ef4444',     // Red 500
+                        success: '#10b981',    // Emerald 500
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom scrollbar for timeline */
+        ::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1aa;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col overflow-hidden bg-background text-primary">
+
+    <!-- Top Navigation -->
+    <header class="h-14 border-b border-border bg-surface flex items-center justify-between px-4 shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="font-bold text-lg tracking-tight flex items-center gap-2">
+                <div
+                    class="w-6 h-6 bg-primary text-black rounded flex items-center justify-center font-serif italic font-black">
+                    A</div>
+                AutoMosaic
+            </div>
+            <span class="w-px h-4 bg-border mx-2"></span>
+            <span class="text-xs text-secondary bg-surfaceHighlight px-2 py-0.5 rounded">v0.1.0-alpha</span>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div class="flex bg-surfaceHighlight p-0.5 rounded-lg">
+                <button
+                    class="px-3 py-1 text-xs font-medium text-primary bg-background rounded shadow-sm">Editor</button>
+                <button
+                    class="px-3 py-1 text-xs font-medium text-secondary hover:text-primary transition-colors">JSON</button>
+            </div>
+            <span class="w-px h-4 bg-border mx-2"></span>
+            <button
+                class="flex items-center gap-2 bg-primary text-black px-3 py-1.5 rounded text-xs font-semibold hover:bg-white transition-colors">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export MP4
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex overflow-hidden">
+
+        <!-- Left Sidebar: Controls -->
+        <aside class="w-80 border-r border-border bg-background flex flex-col overflow-y-auto shrink-0 scrollbar-hide">
+
+            <!-- Section: Layout -->
+            <div class="p-4 border-b border-border">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xs font-bold text-secondary uppercase tracking-wider">Layout Style</h3>
+                    <i data-lucide="layout-grid" class="w-4 h-4 text-secondary"></i>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button
+                        class="flex flex-col items-center justify-center p-3 rounded-lg border border-accent bg-accent/5 text-accent">
+                        <i data-lucide="grid-3x3" class="w-5 h-5 mb-2"></i>
+                        <span class="text-xs font-medium">Grid</span>
+                    </button>
+                    <button
+                        class="flex flex-col items-center justify-center p-3 rounded-lg border border-surfaceHighlight bg-surface hover:border-secondary transition-colors text-secondary hover:text-primary">
+                        <i data-lucide="layout" class="w-5 h-5 mb-2"></i>
+                        <span class="text-xs font-medium">Hero</span>
+                    </button>
+                    <button
+                        class="flex flex-col items-center justify-center p-3 rounded-lg border border-surfaceHighlight bg-surface hover:border-secondary transition-colors text-secondary hover:text-primary">
+                        <i data-lucide="layers" class="w-5 h-5 mb-2"></i>
+                        <span class="text-xs font-medium">Stacked</span>
+                    </button>
+                    <button
+                        class="flex flex-col items-center justify-center p-3 rounded-lg border border-surfaceHighlight bg-surface hover:border-secondary transition-colors text-secondary hover:text-primary">
+                        <i data-lucide="shuffle" class="w-5 h-5 mb-2"></i>
+                        <span class="text-xs font-medium">Scatter</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Section: Canvas Settings -->
+            <div class="p-4 border-b border-border space-y-5">
+                <h3 class="text-xs font-bold text-secondary uppercase tracking-wider">Canvas</h3>
+
+                <!-- Resolution -->
+                <div>
+                    <label class="text-xs text-secondary block mb-2">Resolution</label>
+                    <select
+                        class="w-full bg-surface border border-surfaceHighlight rounded px-2 py-1.5 text-xs text-primary focus:border-accent outline-none">
+                        <option>1080p Landscape (1920x1080)</option>
+                        <option>4K Landscape (3840x2160)</option>
+                        <option>Vertical Story (1080x1920)</option>
+                        <option>Square Post (1080x1080)</option>
+                    </select>
+                </div>
+
+                <!-- Bg Color -->
+                <div>
+                    <label class="text-xs text-secondary block mb-2">Background</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" value="#000000"
+                            class="w-8 h-8 rounded border-none bg-transparent cursor-pointer">
+                        <span class="text-xs font-mono text-secondary">#000000</span>
+                    </div>
+                </div>
+
+                <!-- Padding Slider -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs text-secondary">Gap Size</label>
+                        <span class="text-xs font-mono text-accent">24px</span>
+                    </div>
+                    <input type="range"
+                        class="w-full h-1 bg-surfaceHighlight rounded-lg appearance-none cursor-pointer accent-accent"
+                        min="0" max="100" value="24">
+                </div>
+            </div>
+
+            <!-- Section: Transitions -->
+            <div class="p-4 border-b border-border space-y-4">
+                <h3 class="text-xs font-bold text-secondary uppercase tracking-wider">Transitions</h3>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-xs text-primary cursor-pointer">
+                        <input type="checkbox" checked
+                            class="rounded border-surfaceHighlight bg-surface text-accent focus:ring-0">
+                        <span>Randomize Order</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-xs text-primary cursor-pointer">
+                        <input type="checkbox" checked
+                            class="rounded border-surfaceHighlight bg-surface text-accent focus:ring-0">
+                        <span>Include "Slide"</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-xs text-primary cursor-pointer">
+                        <input type="checkbox"
+                            class="rounded border-surfaceHighlight bg-surface text-accent focus:ring-0">
+                        <span>Include "Fade"</span>
+                    </label>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Center: Canvas Area -->
+        <section class="flex-1 bg-surface relative flex flex-col">
+
+            <!-- Toolbar -->
+            <div
+                class="h-10 border-b border-border flex items-center justify-center gap-4 px-4 bg-background/50 backdrop-blur shrink-0">
+                <button class="text-secondary hover:text-primary"><i data-lucide="zoom-out"
+                        class="w-4 h-4"></i></button>
+                <span class="text-xs text-secondary font-mono">50%</span>
+                <button class="text-secondary hover:text-primary"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+            </div>
+
+            <!-- Viewport -->
+            <div class="flex-1 flex items-center justify-center p-8 overflow-hidden relative">
+                <!-- Checkered Background pattern for transparency -->
+                <div class="absolute inset-0 opacity-5 pointer-events-none"
+                    style="background-image: radial-gradient(#444 1px, transparent 0); background-size: 20px 20px;">
+                </div>
+
+                <!-- The Video Player Placeholder -->
+                <div
+                    class="aspect-video w-full max-w-4xl bg-black shadow-2xl ring-1 ring-white/10 rounded-lg flex items-center justify-center relative group">
+
+                    <!-- Content Simulation -->
+                    <div class="absolute inset-4 grid grid-cols-3 gap-4 p-4 opacity-80">
+                        <div class="bg-zinc-800 rounded animate-pulse"></div>
+                        <div class="bg-zinc-800 rounded animate-pulse animation-delay-100"></div>
+                        <div class="bg-zinc-800 rounded animate-pulse animation-delay-200"></div>
+                        <div class="bg-zinc-800 rounded animate-pulse animation-delay-300"></div>
+                        <div class="bg-zinc-800 rounded animate-pulse animation-delay-400"></div>
+                        <div class="bg-zinc-800 rounded animate-pulse animation-delay-500"></div>
+                    </div>
+
+                    <!-- Overlay Controls -->
+                    <div
+                        class="z-10 bg-black/50 backdrop-blur-sm rounded-full p-4 flex items-center gap-6 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                        <button class="text-white hover:text-accent"><i data-lucide="skip-back"
+                                class="w-6 h-6 fill-current"></i></button>
+                        <button class="bg-white text-black rounded-full p-2 hover:scale-105 transition-transform"><i
+                                data-lucide="play" class="w-8 h-8 fill-current translate-x-0.5"></i></button>
+                        <button class="text-white hover:text-accent"><i data-lucide="skip-forward"
+                                class="w-6 h-6 fill-current"></i></button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Bottom: Timeline / Assets -->
+            <div class="h-48 bg-background border-t border-border flex flex-col shrink-0">
+                <div class="flex items-center justify-between px-4 py-2 border-b border-border">
+                    <h3 class="text-xs font-bold text-secondary uppercase tracking-wider">Timeline / Assets</h3>
+                    <button class="text-xs text-accent flex items-center gap-1 hover:text-accentHover"><i
+                            data-lucide="plus-circle" class="w-3 h-3"></i> Add Images</button>
+                </div>
+
+                <div class="flex-1 overflow-x-auto p-4 flex gap-2 items-center">
+                    <!-- Drop Zone -->
+                    <div
+                        class="h-24 w-24 rounded border-2 border-dashed border-surfaceHighlight flex flex-col items-center justify-center text-secondary hover:border-accent hover:text-accent transition-colors cursor-pointer shrink-0">
+                        <i data-lucide="upload-cloud" class="w-5 h-5 mb-1"></i>
+                        <span class="text-[10px]">Import</span>
+                    </div>
+
+                    <!-- Asset Thumbnails -->
+                    <div class="h-24 w-16 bg-surfaceHighlight rounded border border-white/5 relative shrink-0 group">
+                        <div class="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+                        <img src="https://placehold.co/100x150/18181b/FFF?text=IMG_1"
+                            class="w-full h-full object-cover rounded opacity-70 group-hover:opacity-100 transition-opacity">
+                    </div>
+                    <div class="h-24 w-16 bg-surfaceHighlight rounded border border-white/5 relative shrink-0 group">
+                        <img src="https://placehold.co/100x150/18181b/FFF?text=IMG_2"
+                            class="w-full h-full object-cover rounded opacity-70 group-hover:opacity-100 transition-opacity">
+                    </div>
+                    <div
+                        class="h-24 w-16 bg-surfaceHighlight rounded border border-accent ring-2 ring-accent/30 relative shrink-0 z-10 scale-105 shadow-xl">
+                        <img src="https://placehold.co/100x150/18181b/FFF?text=IMG_3"
+                            class="w-full h-full object-cover rounded">
+                    </div>
+                    <div class="h-24 w-16 bg-surfaceHighlight rounded border border-white/5 relative shrink-0 group">
+                        <img src="https://placehold.co/100x150/18181b/FFF?text=IMG_4"
+                            class="w-full h-full object-cover rounded opacity-70 group-hover:opacity-100 transition-opacity">
+                    </div>
+                    <div class="h-24 w-16 bg-surfaceHighlight rounded border border-white/5 relative shrink-0 group">
+                        <img src="https://placehold.co/100x150/18181b/FFF?text=IMG_5"
+                            class="w-full h-full object-cover rounded opacity-70 group-hover:opacity-100 transition-opacity">
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>

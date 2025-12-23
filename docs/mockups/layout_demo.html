@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoMosaic Layout Demo</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #1a1a1a;
+            --card-bg: #f5f5f5;
+            --accent: #3b82f6;
+            --gap: 12px;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0a0a0a;
+            --text: #ededed;
+            --card-bg: #1a1a1a;
+            --accent: #60a5fa;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .theme-toggle {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--text);
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .demo-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 40px;
+        }
+
+        .layout-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(128, 128, 128, 0.1);
+        }
+
+        .layout-card h2 {
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 16px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .preview {
+            aspect-ratio: 16 / 9;
+            background: rgba(0, 0, 0, 0.05);
+            display: grid;
+            gap: var(--gap);
+            padding: var(--gap);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .img-placeholder {
+            background: var(--accent);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+            opacity: 0.7;
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* Layout Templates */
+        .hero-left {
+            grid-template-columns: 2fr 1fr;
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        .hero-left .p1 {
+            grid-row: span 3;
+        }
+
+        .hero-right {
+            grid-template-columns: 1fr 2fr;
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        .hero-right .p1 {
+            grid-column: 2;
+            grid-row: span 3;
+        }
+
+        .bento {
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .bento .p1 {
+            grid-column: span 2;
+            grid-row: span 2;
+        }
+
+        .bento .p2 {
+            grid-column: span 2;
+        }
+
+        .mosaic {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+
+        .mosaic .p1 {
+            grid-column: span 2;
+        }
+
+        .split-vertical {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .stacked {
+            position: relative;
+            display: block;
+        }
+
+        .stacked .img-placeholder {
+            position: absolute;
+            width: 70%;
+            height: 70%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 2px solid var(--bg);
+        }
+
+        .stacked .p1 {
+            top: 5%;
+            left: 5%;
+            z-index: 1;
+            transform: rotate(-2deg);
+        }
+
+        .stacked .p2 {
+            top: 15%;
+            left: 25%;
+            z-index: 2;
+            transform: rotate(1deg);
+        }
+
+        .stacked .p3 {
+            top: 25%;
+            left: 15%;
+            z-index: 3;
+            transform: rotate(-1deg);
+        }
+
+        .scattered {
+            position: relative;
+            display: block;
+        }
+
+        .scattered .img-placeholder {
+            position: absolute;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--bg);
+        }
+
+        .scattered .p1 {
+            width: 50%;
+            height: 50%;
+            top: 10%;
+            left: 10%;
+            z-index: 1;
+        }
+
+        .scattered .p2 {
+            width: 40%;
+            height: 40%;
+            bottom: 10%;
+            right: 10%;
+            z-index: 2;
+        }
+
+        .scattered .p3 {
+            width: 30%;
+            height: 30%;
+            top: 50%;
+            left: 20%;
+            z-index: 3;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>AutoMosaic Layout Templates</h1>
+        <button class="theme-toggle" onclick="toggleTheme()">Toggle Dark Mode</button>
+    </header>
+
+    <div class="demo-container">
+        <div class="layout-card">
+            <h2>Hero Left (4 images)</h2>
+            <div class="preview hero-left">
+                <div class="img-placeholder p1">HERO</div>
+                <div class="img-placeholder p2">2</div>
+                <div class="img-placeholder p3">3</div>
+                <div class="img-placeholder p4">4</div>
+            </div>
+        </div>
+
+        <div class="layout-card">
+            <h2>Hero Right (4 images)</h2>
+            <div class="preview hero-right">
+                <div class="img-placeholder p2">1</div>
+                <div class="img-placeholder p3">2</div>
+                <div class="img-placeholder p4">3</div>
+                <div class="img-placeholder p1">HERO</div>
+            </div>
+        </div>
+
+        <div class="layout-card">
+            <h2>Bento Grid (5 images)</h2>
+            <div class="preview bento">
+                <div class="img-placeholder p1">LARGE</div>
+                <div class="img-placeholder p2">WIDE</div>
+                <div class="img-placeholder p3">3</div>
+                <div class="img-placeholder p4">4</div>
+            </div>
+        </div>
+
+        <div class="layout-card">
+            <h2>Mosaic (3 images)</h2>
+            <div class="preview mosaic">
+                <div class="img-placeholder p1">TOP</div>
+                <div class="img-placeholder p2">BOTTOM L</div>
+                <div class="img-placeholder p3">BOTTOM R</div>
+            </div>
+        </div>
+
+        <div class="layout-card">
+            <h2>Split Vertical (2 images)</h2>
+            <div class="preview split-vertical">
+                <div class="img-placeholder p1">LEFT</div>
+                <div class="img-placeholder p2">RIGHT</div>
+            </div>
+        </div>
+
+        <div class="layout-card">
+            <h2>Stacked (3 images)</h2>
+            <div class="preview stacked" style="height: 100%;">
+                <div class="img-placeholder p1">BACK</div>
+                <div class="img-placeholder p2">MID</div>
+                <div class="img-placeholder p3">FRONT</div>
+            </div>
+        </div>
+
+        <div class="layout-card">
+            <h2>Scattered (3 images)</h2>
+            <div class="preview scattered" style="height: 100%;">
+                <div class="img-placeholder p1">BIG</div>
+                <div class="img-placeholder p2">MID</div>
+                <div class="img-placeholder p3">SMALL</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const body = document.body;
+            const current = body.getAttribute('data-theme');
+            body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        }
+    </script>
+</body>
+
+</html>
