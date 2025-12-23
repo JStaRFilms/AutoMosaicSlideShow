@@ -13,6 +13,7 @@ interface ExportDialogProps {
 export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     const [status, setStatus] = useState<"idle" | "uploading" | "ready" | "error">("idle");
     const [copied, setCopied] = useState(false);
+    const [exportMode, setExportMode] = useState<"video" | "stills">("video");
 
     const config = useEditorStore((s) => s.config);
     const slides = useEditorStore((s) => s.slides);
@@ -89,7 +90,10 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
     // We removed --concurrency=1 to allow multi-core rendering (much faster).
     // If you experience "socket hang up" errors with many images, try adding --concurrency=1 back manually.
-    const command = `pnpm exec remotion render src/index.ts AutoMosaic out/${config.name.replace(/\s+/g, "_")}.mp4 --props=./public/uploads/render-props.json`;
+    const safeName = config.name.replace(/\s+/g, "_");
+    const command = exportMode === "video"
+        ? `pnpm exec remotion render src/index.ts AutoMosaic out/${safeName}.mp4 --props=./public/uploads/render-props.json`
+        : `pnpm exec remotion render src/index.ts AutoMosaic out/${safeName}_stills --image-format=png --sequence --props=./public/uploads/render-props.json`;
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(command);
@@ -141,7 +145,38 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                     ) : (
                         <div>
                             <p className="text-sm text-secondary mb-4 leading-relaxed">
-                                Assets synced! Paste this command in your terminal to render the video.
+                                Assets synced!
+                                <span className="block mt-2 font-medium text-primary">
+                                    1. Choose Format:
+                                </span>
+                            </p>
+
+                            <div className="flex gap-2 mb-4 bg-black/20 p-1 rounded-lg border border-white/10 w-fit">
+                                <button
+                                    onClick={() => setExportMode("video")}
+                                    className={`px-4 py-1.5 rounded text-sm transition-colors ${exportMode === "video"
+                                            ? "bg-primary text-black font-semibold"
+                                            : "text-secondary hover:text-white"
+                                        }`}
+                                >
+                                    Video (MP4)
+                                </button>
+                                <button
+                                    onClick={() => setExportMode("stills")}
+                                    className={`px-4 py-1.5 rounded text-sm transition-colors ${exportMode === "stills"
+                                            ? "bg-primary text-black font-semibold"
+                                            : "text-secondary hover:text-white"
+                                        }`}
+                                >
+                                    Stills (PNG Sequence)
+                                </button>
+                            </div>
+
+                            <p className="text-sm text-secondary mb-2 leading-relaxed">
+                                <span className="font-medium text-primary">2. Run Command:</span>
+                                {exportMode === "video"
+                                    ? " Generates a single MP4 video file."
+                                    : " Generates a folder containing a PNG image for every frame."}
                             </p>
 
                             <div className="bg-black rounded-lg border border-border p-4 relative group">
