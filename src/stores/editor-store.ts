@@ -16,6 +16,7 @@ interface EditorStore {
     // Image Assets
     images: ImageAsset[];
     addImages: (files: File[]) => void;
+    addImageAssets: (assets: ImageAsset[]) => void;
     removeImage: (id: string) => void;
     clearImages: () => void;
     setImageFocalPoint: (imageId: string, focalPoint: FocalPoint) => void;
@@ -95,6 +96,10 @@ export const useEditorStore = create<EditorStore>()(
                 const imageFiles = files.filter((f) => f.type.startsWith("image/"));
                 const newAssets = await Promise.all(imageFiles.map(createImageAsset));
                 set((state) => ({ images: [...state.images, ...newAssets] }));
+            },
+
+            addImageAssets: (assets: ImageAsset[]) => {
+                set((state) => ({ images: [...state.images, ...assets] }));
             },
 
             removeImage: (id: string) => {

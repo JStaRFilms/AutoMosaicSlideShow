@@ -118,16 +118,30 @@ export function TimelinePanel() {
                                 <GripVertical className="w-3 h-3 text-white/70" />
                             </div>
 
-                            <img
-                                src={img.url}
-                                alt={`Image ${i + 1}`}
-                                className="w-full h-full object-cover rounded opacity-70 group-hover:opacity-100 transition-opacity"
-                                style={{
-                                    objectPosition: img.focalPoint
-                                        ? `${img.focalPoint.x}% ${img.focalPoint.y}%`
-                                        : "center",
-                                }}
-                            />
+                            <div className="relative w-full h-full">
+                                <img
+                                    src={img.url}
+                                    alt={`Image ${i + 1}`}
+                                    className="w-full h-full object-cover rounded opacity-70 group-hover:opacity-100 transition-opacity"
+                                    style={{
+                                        objectPosition: img.focalPoint
+                                            ? `${img.focalPoint.x}% ${img.focalPoint.y}%`
+                                            : "center",
+                                    }}
+                                />
+                                {img.focalPoint && (
+                                    <div
+                                        className="absolute w-4 h-4 border-2 border-red-500 rounded-full shadow-sm z-10 pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
+                                        style={{
+                                            left: `${img.focalPoint.x}%`,
+                                            top: `${img.focalPoint.y}%`
+                                        }}
+                                    >
+                                        <div className="absolute top-1/2 left-0 w-full h-[1px] bg-red-500" />
+                                        <div className="absolute left-1/2 top-0 h-full w-[1px] bg-red-500" />
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Hover overlay with actions */}
                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">

@@ -5,10 +5,12 @@
  * Accepts files and folders via drag-and-drop or file picker.
  */
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useDropzone, FileRejection } from "react-dropzone";
-import { Upload, ImagePlus } from "lucide-react";
+import { Upload, ImagePlus, Loader2, ScanFace } from "lucide-react";
 import { useEditorStore } from "@/stores/editor-store";
+import { useFaceDetection } from "@/hooks/useFaceDetection";
+import type { ImageAsset } from "@/lib/types";
 
 interface UploaderProps {
     className?: string;
@@ -16,16 +18,58 @@ interface UploaderProps {
 }
 
 export function Uploader({ className = "", compact = false }: UploaderProps) {
-    const addImages = useEditorStore((s) => s.addImages);
+    const addImageAssets = useEditorStore((s) => s.addImageAssets);
     const imageCount = useEditorStore((s) => s.images.length);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const { detectProminentFace, isModelLoaded } = useFaceDetection();
 
     const onDrop = useCallback(
-        (acceptedFiles: File[], _rejections: FileRejection[]) => {
-            if (acceptedFiles.length > 0) {
-                addImages(acceptedFiles);
+        async (acceptedFiles: File[], _rejections: FileRejection[]) => {
+            if (acceptedFiles.length === 0) return;
+
+            setIsProcessing(true);
+            const newImages: ImageAsset[] = [];
+
+            // Process sequentially to allow face detection logic
+            for (const file of acceptedFiles) {
+                if (!file.type.startsWith("image/")) continue;
+
+                const url = URL.createObjectURL(file);
+
+                // Load image to get dimensions and detect faces
+                try {
+                    const img = new Image();
+                    img.src = url;
+
+                    await new Promise<void>((resolve) => {
+                        img.onload = async () => {
+                            let focalPoint = { x: 50, y: 50 };
+
+                            if (isModelLoaded) {
+                                focalPoint = await detectProminentFace(img);
+                            }
+
+                            newImages.push({
+                                id: crypto.randomUUID(),
+                                url,
+                                file,
+                                width: img.naturalWidth,
+                                height: img.naturalHeight,
+                                focalPoint,
+                            });
+                            resolve();
+                        };
+                        img.onerror = () => resolve();
+                    });
+                } catch (e) {
+                    console.error("Error processing image", e);
+                }
             }
+
+            addImageAssets(newImages);
+            setIsProcessing(false);
         },
-        [addImages]
+        [addImageAssets, detectProminentFace, isModelLoaded]
     );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -93,6 +137,22 @@ export function Uploader({ className = "", compact = false }: UploaderProps) {
                         <br />
                         Supports PNG, JPG, WebP, GIF, AVIF
                     </p>
+                    {isProcessing ? (
+                        <div className="flex items-center gap-1.5 mt-4 text-xs text-accent">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Processing images...</span>
+                        </div>
+                    ) : isModelLoaded ? (
+                        <div className="flex items-center gap-1.5 mt-4 text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
+                            <ScanFace className="w-3 h-3" />
+                            <span>Smart Face Detection Active</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1.5 mt-4 text-xs text-secondary bg-surface-highlight px-2 py-1 rounded-full">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Loading AI Models...</span>
+                        </div>
+                    )}
                 </>
             )}
 
