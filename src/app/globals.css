@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* AutoMosaic Design System - Zinc-based Dark Theme */
+:root {
+  /* Backgrounds */
+  --background: #09090b;
+  --surface: #18181b;
+  --surface-highlight: #27272a;
+  --border: #27272a;
+
+  /* Text */
+  --primary: #fafafa;
+  --primary-dim: #e4e4e7;
+  --secondary: #a1a1aa;
+
+  /* Action Colors */
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --danger: #ef4444;
+  --success: #10b981;
+}
+
+/* Light Mode */
+:root.light {
+  --background: #ffffff;
+  --surface: #fafafa;
+  --surface-highlight: #f4f4f5;
+  --border: #e4e4e7;
+  --primary: #09090b;
+  --primary-dim: #27272a;
+  --secondary: #71717a;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+}
+
+@theme inline {
+  /* Colors */
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-highlight: var(--surface-highlight);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-dim: var(--primary-dim);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+
+  /* Fonts */
+  --font-sans: 'Inter', sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--primary);
+  font-family: var(--font-sans);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-highlight);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary);
+}
+
+/* Glass Panel Effect */
+.glass-panel {
+  background: rgba(24, 24, 27, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}

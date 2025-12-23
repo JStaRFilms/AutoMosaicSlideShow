@@ -13,6 +13,8 @@
 | FR-007 | Resolution Presets | As a creator, I want to choose between 1080p, 4K, and 9:16 Vertical, so that my content fits different platforms. | Composition restarts with new dimensions/padding. | MUS |
 | FR-010 | Stacked Image Cycle | As a creator, I want stacked images to cycle their z-index, so that every image in the stack is eventually shown in front. | Within a single slide duration, images at the back are animated to the front. | MUS |
 | FR-011 | Smart Duration Distribution | As a creator, I want to set a total video duration and have the system calculate slide timings with variance, so that the video hits the target time dynamically. | User inputs "Total Time" (e.g., 60s). System assigns durations based on slide complexity (more images = longer time). | MUS |
+| FR-012 | Manual Image Adjustment | As a creator, I want to adjust focal points and reorder images in a slide, so that faces and important details aren't cut off. | Click-to-set focal point per image. Drag to reorder images in timeline. Changes persist until regenerated. | MUS |
+| FR-013 | Smart Face Detection | As a creator, I want the app to automatically detect faces and set focal points, so that compositions look good without manual work. | Uses browser FaceDetector API or face-api.js to auto-detect and set focal points on upload. | Future |
 | FR-008 | Project History | As a creator, I want to see my past generated projects, so that I can revisit or re-render them. | Uses Prisma/SQLite to store configuration "blueprints". | Future |
 | FR-009 | Cloud Hosting | As a creator, I want to host this online, so that I can access it from anywhere. | Deployable to Vercel/AWS Lambda. | Future |
 
