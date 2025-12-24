@@ -13,6 +13,13 @@ import { DEFAULT_PROJECT_CONFIG } from "@/lib/types";
 // ============================================
 
 interface EditorStore {
+    // Project Identity
+    currentProjectId: string | null;
+    setCurrentProjectId: (id: string | null) => void;
+    isDirty: boolean;
+    setIsDirty: (dirty: boolean) => void;
+    resetEditor: () => void;
+
     // Image Assets
     images: ImageAsset[];
     addImages: (files: File[]) => void;
@@ -89,13 +96,31 @@ import { persist } from "zustand/middleware";
 export const useEditorStore = create<EditorStore>()(
     persist(
         (set, get) => ({
+            // Project Identity
+            currentProjectId: null,
+            setCurrentProjectId: (id) => set({ currentProjectId: id }),
+            isDirty: false,
+            setIsDirty: (dirty) => set({ isDirty: dirty }),
+            resetEditor: () => {
+                get().images.forEach((img) => URL.revokeObjectURL(img.url));
+                set({
+                    currentProjectId: null,
+                    isDirty: false,
+                    images: [],
+                    slides: [],
+                    config: DEFAULT_PROJECT_CONFIG,
+                    isPlaying: false,
+                    currentFrame: 0,
+                });
+            },
+
             // Image Assets
             images: [],
 
             addImages: async (files: File[]) => {
                 const imageFiles = files.filter((f) => f.type.startsWith("image/"));
                 const newAssets = await Promise.all(imageFiles.map(createImageAsset));
-                set((state) => ({ images: [...state.images, ...newAssets] }));
+                set((state) => ({ images: [...state.images, ...newAssets], isDirty: true }));
             },
 
             addImageAssets: (assets: ImageAsset[]) => {
@@ -144,6 +169,7 @@ export const useEditorStore = create<EditorStore>()(
             updateConfig: (key, value) =>
                 set((state) => ({
                     config: { ...state.config, [key]: value },
+                    isDirty: true,
                 })),
 
             // Transitions
@@ -199,7 +225,22 @@ export const useEditorStore = create<EditorStore>()(
         }),
         {
             name: "automosaic-storage",
-            partialize: (state) => ({ config: state.config }), // Only persist config
+            // Persist draft state for recovery (exclude non-serializable File objects)
+            partialize: (state) => ({
+                config: state.config,
+                isDirty: state.isDirty,
+                currentProjectId: state.currentProjectId,
+                // Store images without File object (only works for /uploads/ URLs, not blobs)
+                images: state.images.map(img => ({
+                    id: img.id,
+                    url: img.url,
+                    width: img.width,
+                    height: img.height,
+                    focalPoint: img.focalPoint,
+                    // Don't persist File objects - they're not serializable
+                    // Blob URLs will break on reload, but /uploads/ URLs will work
+                })),
+            }),
         }
     )
 );

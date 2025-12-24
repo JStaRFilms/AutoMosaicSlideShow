@@ -57,9 +57,9 @@
 - **User Story**: As a creator, I want to see my past generated projects, so that I can revisit or re-render them.
 - **Solution**: Use Prisma with SQLite to save `EditorState` snapshots. Add a "Projects" dashboard page.
 - **Acceptance Criteria**:
-  - [ ] Auto-save project definition to DB.
-  - [ ] Dashboard listing past projects.
-  - [ ] "Load" button restores state.
+  - [x] Auto-save project definition to DB.
+  - [x] Dashboard listing past projects.
+  - [x] "Load" button restores state.
 
 ## [Issue #8] Cloud Hosting Preparation
 - **Labels**: `infrastructure`, `deploy`

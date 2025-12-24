@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "@remotion/cli": "^4.0.394",
     "@remotion/player": "^4.0.394",
     "@remotion/transitions": "^4.0.394",
@@ -32,6 +33,7 @@
     "eslint-config-next": "16.1.1",
     "postcss": "^8.5.6",
     "postcss-loader": "^8.2.0",
+    "prisma": "5",
     "style-loader": "^4.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"

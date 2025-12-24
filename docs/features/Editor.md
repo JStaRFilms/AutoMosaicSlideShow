@@ -16,6 +16,11 @@ Located in `src/stores/editor-store.ts`, this store manages:
 
 ```typescript
 interface EditorStore {
+  // Project Identity
+  currentProjectId: string | null;
+  isDirty: boolean;
+
+  // Assets & Config
   images: ImageAsset[];       // Uploaded images
   slides: SlideConfig[];      // Generated slides for timeline
   config: ProjectConfig;      // User settings (fps, width, height)
@@ -29,6 +34,14 @@ interface EditorStore {
   exportProgress: number;
 }
 ```
+
+## 💾 Persistence (Draft Recovery)
+
+The store uses `zustand/middleware/persist` (Local Storage) to save work-in-progress.
+
+- **Saved Items**: `config`, `images` (metadata + URLs), `slides`, `currentProjectId`.
+- **Excluded**: Raw `File` objects (not serializable).
+- **Recovery Strategy**: On reload, we restore image URLs. If they were blob URLs, they die. If they were `/uploads/` URLs (post-export), they survive. *Note: We are improving this to better handle session restoration.*
 
 ## ⚙️ Configuration (`ProjectConfig`)
 

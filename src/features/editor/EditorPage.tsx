@@ -11,6 +11,8 @@ import { ControlsSidebar } from "@/components/ui/ControlsSidebar";
 import { PreviewCanvas } from "@/components/ui/PreviewCanvas";
 import { TimelinePanel } from "@/components/ui/TimelinePanel";
 import { ExportDialog } from "@/components/ui/ExportDialog";
+import { SaveProjectDialog } from "@/components/ui/SaveProjectDialog";
+import { DraftRecoveryDialog } from "@/components/ui/DraftRecoveryDialog";
 import { Uploader } from "@/features/upload/Uploader";
 import { useEditorStore } from "@/stores/editor-store";
 import { generateSlides } from "@/features/layout/LayoutEngine";
@@ -20,6 +22,7 @@ export function EditorPage() {
     const config = useEditorStore((s) => s.config);
     const setSlides = useEditorStore((s) => s.setSlides);
     const [isExportOpen, setIsExportOpen] = useState(false);
+    const [isSaveOpen, setIsSaveOpen] = useState(false);
 
     // Regenerate slides when images or config changes
     useEffect(() => {
@@ -43,7 +46,10 @@ export function EditorPage() {
 
     return (
         <div className="h-screen flex flex-col overflow-hidden bg-background text-primary">
-            <Header onExport={() => setIsExportOpen(true)} />
+            <Header
+                onExport={() => setIsExportOpen(true)}
+                onSave={() => setIsSaveOpen(true)}
+            />
 
             <main className="flex-1 flex overflow-hidden">
                 <ControlsSidebar />
@@ -69,6 +75,11 @@ export function EditorPage() {
                 isOpen={isExportOpen}
                 onClose={() => setIsExportOpen(false)}
             />
+            <SaveProjectDialog
+                isOpen={isSaveOpen}
+                onClose={() => setIsSaveOpen(false)}
+            />
+            <DraftRecoveryDialog />
         </div>
     );
 }

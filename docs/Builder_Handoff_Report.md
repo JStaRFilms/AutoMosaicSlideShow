@@ -15,8 +15,8 @@
 | FR-007 | Resolution presets (1080p, 4K, Vertical, Square) | ✅ |
 | FR-010 | Stacked image z-index cycle animation | ✅ |
 | FR-011 | Smart duration distribution (complexity-based) | ✅ |
-| FR-005 | Video Export (MP4) | ⏳ Placeholder |
-| FR-006 | Image Export (PNG stills) | ⏳ Placeholder |
+| FR-005 | Video Export (MP4) | ✅ (CLI Generator) |
+| FR-006 | Image Export (PNG still sequence) | ✅ (CLI Generator) |
 
 ### Files Created
 
@@ -65,13 +65,12 @@ pnpm build
 
 The following **Future** features from the PRD are ready for implementation:
 
-- **FR-005/FR-006**: Video & Image Export
-  - Integrate `@remotion/renderer` for browser-side rendering
-  - Implement progress tracking via Zustand store
+- **FR-008**: Project Management & History
+  - Implement real database (SQLite/Prisma) for creating named projects.
+  - "Load Project" UI to list saved sessions.
+  - Enhance "Draft Recovery" to be robust against browser clearing.
 
-- **FR-008**: Project History
-  - Add Prisma + SQLite
-  - Create `ProjectService` for blueprint storage
+
 
 - **FR-009**: Cloud Hosting
   - Deploy to Vercel
@@ -79,6 +78,6 @@ The following **Future** features from the PRD are ready for implementation:
 
 ## Notes
 
-- The export button currently logs to console as a placeholder
+- The export button opens the Export Dialog for sync & command generation.
 - Light mode is supported via `.light` class on `<html>`
 - Remotion v4 uses subpath imports (`@remotion/transitions/fade`)

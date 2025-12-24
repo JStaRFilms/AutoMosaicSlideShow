@@ -14,6 +14,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     const [status, setStatus] = useState<"idle" | "uploading" | "ready" | "error">("idle");
     const [copied, setCopied] = useState(false);
     const [exportMode, setExportMode] = useState<"video" | "stills">("video");
+    const [renderMode, setRenderMode] = useState<"fast" | "stable">("fast");
 
     const config = useEditorStore((s) => s.config);
     const slides = useEditorStore((s) => s.slides);
@@ -27,19 +28,24 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
         try {
             // 2. Prepare FormData with Images
+            // Only include images that have File objects (not restored from localStorage)
             const formData = new FormData();
-            images.forEach((img) => {
-                formData.append("files", img.file);
+            const imagesToUpload = images.filter(img => img.file);
+            imagesToUpload.forEach((img) => {
+                formData.append("files", img.file!);
             });
 
-            const res = await fetch("/api/save-assets", {
-                method: "POST",
-                body: formData,
-            });
+            // If no files to upload, still proceed (images may already be in /uploads/)
+            let data: { paths: Record<string, string> } = { paths: {} };
+            if (imagesToUpload.length > 0) {
+                const res = await fetch("/api/save-assets", {
+                    method: "POST",
+                    body: formData,
+                });
 
-            if (!res.ok) throw new Error("Upload failed");
-
-            const data = await res.json();
+                if (!res.ok) throw new Error("Upload failed");
+                data = await res.json();
+            }
             // data.paths contains mapping of filename -> absolute system path
 
             // 1. Prepare Props with HTTP paths (http://localhost:port/...)
@@ -52,9 +58,10 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                         ...s.layout,
                         images: s.layout.images.map((img) => ({
                             ...img,
-                            // Use HTTP URL pointing to the Next.js public folder
-                            // The API now returns relative paths like "/uploads/img.jpg"
-                            url: `${origin}${data.paths[img.file.name]}`,
+                            // Use HTTP URL - either from uploaded path or existing URL
+                            url: img.file && data.paths[img.file.name]
+                                ? `${origin}${data.paths[img.file.name]}`
+                                : (img.url.startsWith('/uploads/') ? `${origin}${img.url}` : img.url),
                         })),
                     },
                 })),
@@ -88,12 +95,13 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         }
     };
 
-    // We removed --concurrency=1 to allow multi-core rendering (much faster).
-    // If you experience "socket hang up" errors with many images, try adding --concurrency=1 back manually.
+    // Stable mode uses --concurrency=1 (single CPU core) - slower but more reliable
+    // Fast mode uses all CPU cores - faster but may cause "socket hang up" errors
     const safeName = config.name.replace(/\s+/g, "_");
+    const concurrencyFlag = renderMode === "stable" ? " --concurrency=1" : "";
     const command = exportMode === "video"
-        ? `pnpm exec remotion render src/index.ts AutoMosaic out/${safeName}.mp4 --props=./public/uploads/render-props.json`
-        : `pnpm exec remotion render src/index.ts AutoMosaic out/${safeName}_stills --image-format=png --sequence --props=./public/uploads/render-props.json`;
+        ? `pnpm exec remotion render src/index.ts AutoMosaic out/${safeName}.mp4 --props=./public/uploads/render-props.json${concurrencyFlag}`
+        : `pnpm exec remotion render src/index.ts AutoMosaic out/${safeName}_stills --image-format=png --sequence --props=./public/uploads/render-props.json${concurrencyFlag}`;
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(command);
@@ -155,8 +163,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                                 <button
                                     onClick={() => setExportMode("video")}
                                     className={`px-4 py-1.5 rounded text-sm transition-colors ${exportMode === "video"
-                                            ? "bg-primary text-black font-semibold"
-                                            : "text-secondary hover:text-white"
+                                        ? "bg-primary text-black font-semibold"
+                                        : "text-secondary hover:text-white"
                                         }`}
                                 >
                                     Video (MP4)
@@ -164,16 +172,41 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                                 <button
                                     onClick={() => setExportMode("stills")}
                                     className={`px-4 py-1.5 rounded text-sm transition-colors ${exportMode === "stills"
-                                            ? "bg-primary text-black font-semibold"
-                                            : "text-secondary hover:text-white"
+                                        ? "bg-primary text-black font-semibold"
+                                        : "text-secondary hover:text-white"
                                         }`}
                                 >
                                     Stills (PNG Sequence)
                                 </button>
                             </div>
 
+                            <p className="text-sm text-secondary mb-2">
+                                <span className="font-medium text-primary">2. Choose Speed:</span>
+                            </p>
+
+                            <div className="flex gap-2 mb-4 bg-black/20 p-1 rounded-lg border border-white/10 w-fit">
+                                <button
+                                    onClick={() => setRenderMode("fast")}
+                                    className={`px-4 py-1.5 rounded text-sm transition-colors ${renderMode === "fast"
+                                        ? "bg-accent text-black font-semibold"
+                                        : "text-secondary hover:text-white"
+                                        }`}
+                                >
+                                    ⚡ Fast (All Cores)
+                                </button>
+                                <button
+                                    onClick={() => setRenderMode("stable")}
+                                    className={`px-4 py-1.5 rounded text-sm transition-colors ${renderMode === "stable"
+                                        ? "bg-accent text-black font-semibold"
+                                        : "text-secondary hover:text-white"
+                                        }`}
+                                >
+                                    🛡️ Stable (Single Core)
+                                </button>
+                            </div>
+
                             <p className="text-sm text-secondary mb-2 leading-relaxed">
-                                <span className="font-medium text-primary">2. Run Command:</span>
+                                <span className="font-medium text-primary">3. Run Command:</span>
                                 {exportMode === "video"
                                     ? " Generates a single MP4 video file."
                                     : " Generates a folder containing a PNG image for every frame."}

@@ -67,7 +67,13 @@ To export a video:
 
 1.  Configure your slideshow in the editor.
 2.  Click the **Export** button.
-3.  The app uses the local Remotion rendering engine to produce an MP4 file.
+3.  Choose your format (Video or Stills).
+4.  Choose your render speed:
+    - **⚡ Fast** - Uses all CPU cores for faster rendering
+    - **🛡️ Stable** - Uses single core (`--concurrency=1`), slower but avoids "socket hang up" errors
+5.  Copy and run the generated command in your terminal.
+
+> **Tip**: If you experience crashes or "socket hang up" errors during export, switch to **Stable** mode.
 
 ---
 
